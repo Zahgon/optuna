@@ -23,43 +23,6 @@ if TYPE_CHECKING:
 
 
 class FanovaImportanceEvaluator(BaseImportanceEvaluator):
-    """fANOVA importance evaluator.
-
-    Implements the fANOVA hyperparameter importance evaluation algorithm in
-    `An Efficient Approach for Assessing Hyperparameter Importance
-    <http://proceedings.mlr.press/v32/hutter14.html>`__.
-
-    fANOVA fits a random forest regression model that predicts the objective values
-    of :class:`~optuna.trial.TrialState.COMPLETE` trials given their parameter configurations.
-    The more accurate this model is, the more reliable the importances assessed
-    by this class are.
-
-    .. note::
-
-        Requires the `sklearn <https://github.com/scikit-learn/scikit-learn>`__ Python package.
-
-    .. note::
-
-        The performance of fANOVA depends on the prediction performance of the underlying
-        random forest model. In order to obtain high prediction performance, it is necessary to
-        cover a wide range of the hyperparameter search space. It is recommended to use an
-        exploration-oriented sampler such as :class:`~optuna.samplers.RandomSampler`.
-
-    .. note::
-
-        For how to cite the original work, please refer to
-        https://automl.github.io/fanova/cite.html.
-
-    Args:
-        n_trees:
-            The number of trees in the forest.
-        max_depth:
-            The maximum depth of the trees in the forest.
-        seed:
-            Controls the randomness of the forest. For deterministic behavior, specify a value
-            other than :obj:`None`.
-
-    """
 
     def __init__(self, *, n_trees: int = 64, max_depth: int = 64, seed: int | None = None) -> None:
         self._evaluator = _Fanova(
@@ -89,9 +52,6 @@ class FanovaImportanceEvaluator(BaseImportanceEvaluator):
             params = list(distributions.keys())
         assert params is not None
 
-        # fANOVA does not support parameter distributions with a single value.
-        # However, there is no reason to calculate parameter importance in such case anyway,
-        # since it will always be 0 as the parameter is constant in the objective function.
         non_single_distributions = {
             name: dist for name, dist in distributions.items() if not dist.single()
         }

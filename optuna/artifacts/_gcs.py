@@ -17,44 +17,6 @@ with try_import() as _imports:
 
 @experimental_class("3.4.0")
 class GCSArtifactStore:
-    """An artifact backend for Google Cloud Storage (GCS).
-
-    Args:
-        bucket_name:
-            The name of the bucket to store artifacts.
-
-        client:
-            A google-cloud-storage ``Client`` to use for storage operations. If not specified, a
-            new client will be created with default settings.
-
-    Example:
-        .. code-block:: python
-
-            import optuna
-            from optuna.artifacts import GCSArtifactStore, upload_artifact
-
-
-            artifact_backend = GCSArtifactStore("my-bucket")
-
-
-            def objective(trial: optuna.Trial) -> float:
-                ... = trial.suggest_float("x", -10, 10)
-                file_path = generate_example(...)
-                upload_artifact(
-                    artifact_store=artifact_store,
-                    file_path=file_path,
-                    study_or_trial=trial,
-                )
-                return ...
-
-        Before running this code, you will have to install ``gcloud`` and run
-
-        .. code-block:: bash
-
-            gcloud auth application-default login
-
-        so that the Cloud Storage library can automatically find the credential.
-    """
 
     def __init__(
         self,
@@ -88,8 +50,6 @@ class GCSArtifactStore:
 
 
 if TYPE_CHECKING:
-    # A mypy-runtime assertion to ensure that GCS3ArtifactStore implements all abstract methods
-    # in ArtifactStore.
     from optuna.artifacts._protocol import ArtifactStore
 
     _: ArtifactStore = GCSArtifactStore("")

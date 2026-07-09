@@ -18,28 +18,6 @@ if TYPE_CHECKING:
 
 @experimental_class("4.0.0")
 class MedianErrorEvaluator(BaseErrorEvaluator):
-    """An error evaluator that returns the ratio to initial median.
-
-    This error evaluator is introduced as a heuristics in the following paper:
-
-    - `A stopping criterion for Bayesian optimization by the gap of expected minimum simple
-      regrets <https://proceedings.mlr.press/v206/ishibashi23a.html>`__
-
-    Args:
-        paired_improvement_evaluator:
-            The ``improvement_evaluator`` instance which is set with this ``error_evaluator``.
-        warm_up_trials:
-            A parameter specifies the number of initial trials to be discarded before
-            the calculation of median. Default to 10.
-            In optuna, the first 10 trials are often random sampling.
-            The ``warm_up_trials`` can exclude them from the calculation.
-        n_initial_trials:
-            A parameter specifies the number of initial trials considered in the calculation of
-            median after ``warm_up_trials``. Default to 20.
-        threshold_ratio:
-            A parameter specifies the ratio between the threshold and initial median.
-            Default to 0.01.
-    """
 
     def __init__(
         self,

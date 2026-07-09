@@ -9,7 +9,6 @@ if TYPE_CHECKING:
 
 
 class BasePruner(abc.ABC):
-    """Base class for pruners."""
 
     @abc.abstractmethod
     def prune(self, study: "optuna.study.Study", trial: "optuna.trial.FrozenTrial") -> bool:

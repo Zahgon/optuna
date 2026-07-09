@@ -14,11 +14,6 @@ class _TestableThread(threading.Thread):
         threading.Thread.__init__(self, target=target, args=args)
         self.exc: BaseException | None = None
 
-    def run(self) -> None:
-        try:
-            threading.Thread.run(self)
-        except BaseException as e:
-            self.exc = e
 
     def join(self, timeout: float | None = None) -> None:
         super(_TestableThread, self).join(timeout)

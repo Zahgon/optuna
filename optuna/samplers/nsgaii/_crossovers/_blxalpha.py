@@ -14,20 +14,6 @@ if TYPE_CHECKING:
 
 @experimental_class("3.0.0")
 class BLXAlphaCrossover(BaseCrossover):
-    """Blend Crossover operation used by :class:`~optuna.samplers.NSGAIISampler`.
-
-    Uniformly samples child individuals from the hyper-rectangles created
-    by the two parent individuals. For further information about BLX-alpha crossover,
-    please refer to the following paper:
-
-    - `Eshelman, L. and J. D. Schaffer.
-      Real-Coded Genetic Algorithms and Interval-Schemata. FOGA (1992).
-      <https://doi.org/10.1016/B978-0-08-094832-4.50018-0>`__
-
-    Args:
-        alpha:
-            Parametrizes blend operation.
-    """
 
     n_parents = 2
 
@@ -41,8 +27,6 @@ class BLXAlphaCrossover(BaseCrossover):
         study: Study,
         search_space_bounds: np.ndarray,
     ) -> np.ndarray:
-        # https://doi.org/10.1109/CEC.2001.934452
-        # Section 2 Crossover Operators for RCGA 2.1 Blend Crossover
 
         parents_min = parents_params.min(axis=0)
         parents_max = parents_params.max(axis=0)

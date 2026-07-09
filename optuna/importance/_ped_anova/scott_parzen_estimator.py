@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 
 
 class ScottParzenEstimator(_ParzenEstimator):
-    """1D ParzenEstimator using the bandwidth selection by Scott's rule."""
 
     def __init__(
         self,
@@ -39,9 +38,6 @@ class ScottParzenEstimator(_ParzenEstimator):
         search_space: FloatDistribution | IntDistribution,
         parameters: _ParzenEstimatorParameters,
     ) -> _BatchedDistributions:
-        # NOTE: The Optuna TPE bandwidth selection is too wide for this analysis.
-        # So use the Scott's rule by Scott, D.W. (1992),
-        # Multivariate Density Estimation: Theory, Practice, and Visualization.
         step = search_space.step
         assert step is not None and np.isclose(step, 1.0), "MyPy redefinition."
 
@@ -61,7 +57,6 @@ class ScottParzenEstimator(_ParzenEstimator):
         q3_idx = np.searchsorted(weights_cum, weights_sum * 3 // 4, side="right")
         iqr = observations[min(observations.size - 1, q3_idx)] - observations[q1_idx]
         sigma_est = 1.059 * min(iqr / 1.34, sigma_est) * weights_sum**-0.2
-        # To avoid numerical errors. 0.5/1.64 means 1.64sigma (=90%) will fit in the target grid.
         sigma_min = 0.5 / 1.64
         mus_with_prior = np.r_[observations, (low + high) / 2.0]
         sigmas = np.full_like(observations, max(sigma_est, sigma_min), dtype=np.float64)
@@ -91,7 +86,6 @@ def _count_numerical_param_in_grid(
     low, high = (math.log(dist.low), math.log(dist.high)) if dist.log else (dist.low, dist.high)
     param_values = (np.log if dist.log else np.asarray)([t.params[param_name] for t in trials])
     step_size = (high - low) / (n_steps - 1)
-    # For backward compatibility, midpoint ties go to the lower grid.
     indices = np.ceil((param_values - low) / step_size - 0.5).astype(int)
     indices = np.clip(indices, 0, n_steps - 1)
     return np.bincount(indices, minlength=n_steps)

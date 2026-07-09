@@ -21,7 +21,6 @@ if TYPE_CHECKING:
 
 
 class BaseImportanceEvaluator(abc.ABC):
-    """Abstract parameter importance evaluator."""
 
     @abc.abstractmethod
     def evaluate(
@@ -65,7 +64,6 @@ class BaseImportanceEvaluator(abc.ABC):
             importances.
 
         """
-        # TODO(hvy): Reconsider the interface as logic might violate DRY among multiple evaluators.
         raise NotImplementedError
 
 
@@ -76,11 +74,9 @@ def _get_distributions(study: Study, params: list[str] | None) -> dict[str, Base
     if params is None:
         return intersection_search_space(study.get_trials(deepcopy=False))
 
-    # New temporary required to pass mypy. Seems like a bug.
     params_not_none = params
     assert params_not_none is not None
 
-    # Compute the search space based on the subset of trials containing all parameters.
     distributions = None
     for trial in completed_trials:
         trial_distributions = trial.distributions

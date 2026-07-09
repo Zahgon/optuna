@@ -30,37 +30,6 @@ _INDEPENDENT_SAMPLING_WARNING_TEMPLATE = (
 
 
 class BaseSampler(abc.ABC):
-    """Base class for samplers.
-
-    Optuna combines two types of sampling strategies, which are called *relative sampling* and
-    *independent sampling*.
-
-    *The relative sampling* determines values of multiple parameters simultaneously so that
-    sampling algorithms can use relationship between parameters (e.g., correlation).
-    Target parameters of the relative sampling are described in a relative search space, which
-    is determined by :func:`~optuna.samplers.BaseSampler.infer_relative_search_space`.
-
-    *The independent sampling* determines a value of a single parameter without considering any
-    relationship between parameters. Target parameters of the independent sampling are the
-    parameters not described in the relative search space.
-
-    More specifically, parameters are sampled by the following procedure.
-    At the beginning of a trial, :meth:`~optuna.samplers.BaseSampler.infer_relative_search_space`
-    is called to determine the relative search space for the trial.
-    During the execution of the objective function,
-    :meth:`~optuna.samplers.BaseSampler.sample_relative` is called only once
-    when sampling the parameters belonging to the relative search space for the first time.
-    :meth:`~optuna.samplers.BaseSampler.sample_independent` is used to sample
-    parameters that don't belong to the relative search space.
-
-    The following figure depicts the lifetime of a trial and how the above three methods are
-    called in the trial.
-
-    .. image:: ../../../../image/sampling-sequence.png
-
-    |
-
-    """
 
     def __str__(self) -> str:
         return self.__class__.__name__

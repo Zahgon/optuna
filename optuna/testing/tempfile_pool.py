@@ -1,5 +1,3 @@
-# On Windows, temporary file should delete "after" storage was deleted
-# NamedTemporaryFilePool ensures tempfile delete after tests.
 
 from __future__ import annotations
 
@@ -36,12 +34,6 @@ class NamedTemporaryFilePool:
     def __enter__(self) -> IO[bytes] | IO[str]:
         return self.tempfile()
 
-    def tempfile(self) -> IO[bytes] | IO[str]:
-        f = cast("IO[bytes] | IO[str]", tempfile.NamedTemporaryFile(delete=False, **self.kwargs))
-        self._file = f
-        with self.__class__._lock:
-            self.__class__._path.append(f.name)
-        return self._file
 
     def __exit__(
         self,
@@ -52,14 +44,3 @@ class NamedTemporaryFilePool:
         if self._file is not None:
             self._file.close()
 
-    @classmethod
-    def cleanup(cls) -> None:
-        with cls._lock:
-            path = copy.copy(cls._path)
-            cls._path = []
-
-        for p in path:
-            try:
-                os.unlink(p)
-            except (FileNotFoundError, PermissionError):
-                pass

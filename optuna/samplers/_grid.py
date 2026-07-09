@@ -31,87 +31,6 @@ _logger = get_logger(__name__)
 
 
 class GridSampler(BaseSampler):
-    """Sampler that performs exhaustive search over the define-and-run user-specified grids.
-
-    With :class:`~optuna.samplers.GridSampler`, the trials suggest all combinations of parameters
-    in the given search space during the study.
-
-    .. note::
-        :class:`~optuna.samplers.BruteForceSampler` also provides the exhaustive search feature.
-        Unlike :class:`~optuna.samplers.GridSampler`, :class:`~optuna.samplers.BruteForceSampler`
-        does not ask users to provide search space and it supports hierarchical, aka dynamic search
-        space, enabling users to seamlessly enjoy the exhaustive search.
-
-    Example:
-
-        .. testcode::
-
-            import optuna
-
-
-            def objective(trial):
-                x = trial.suggest_float("x", -100, 100)
-                y = trial.suggest_int("y", -100, 100)
-                return x**2 + y**2
-
-
-            search_space = {"x": [-50, 0, 50], "y": [-99, 0, 99]}
-            study = optuna.create_study(sampler=optuna.samplers.GridSampler(search_space))
-            study.optimize(objective)
-
-    Note:
-
-        This sampler with :ref:`ask_and_tell` raises :exc:`RuntimeError` just after evaluating
-        the final grid. This is because :class:`~optuna.samplers.GridSampler` automatically
-        stops the optimization if all combinations in the passed ``search_space`` have already
-        been evaluated, internally invoking the :func:`~optuna.study.Study.stop` method.
-        As a workaround, we need to handle the error manually as in
-        https://github.com/optuna/optuna/issues/4121#issuecomment-1305289910.
-
-    Note:
-
-        :class:`~optuna.samplers.GridSampler` does not take care of a parameter's quantization
-        specified by discrete suggest methods but just samples one of values specified in the
-        search space. E.g., in the following code snippet, either of ``-0.5`` or ``0.5`` is
-        sampled as ``x`` instead of an integer point.
-
-        .. testcode::
-
-            import optuna
-
-
-            def objective(trial):
-                # The following suggest method specifies integer points between -5 and 5.
-                x = trial.suggest_float("x", -5, 5, step=1)
-                return x**2
-
-
-            # Non-int points are specified in the grid.
-            search_space = {"x": [-0.5, 0.5]}
-            study = optuna.create_study(sampler=optuna.samplers.GridSampler(search_space))
-            study.optimize(objective, n_trials=2)
-
-    Note:
-        A parameter configuration in the grid is not considered finished until its trial is
-        finished. Therefore, during distributed optimization where trials run concurrently,
-        different workers will occasionally suggest the same parameter configuration.
-        The total number of actual trials may therefore exceed the size of the grid.
-
-    Note:
-        All parameters must be specified when using :class:`~optuna.samplers.GridSampler` with
-        :meth:`~optuna.study.Study.enqueue_trial`.
-
-    Args:
-        search_space:
-            A dictionary whose key and value are a parameter name and the corresponding candidates
-            of values, respectively.
-        seed:
-            A seed to fix the order of trials as the grid is randomly shuffled. This shuffle is
-            beneficial when the number of grids is larger than ``n_trials`` in
-            :meth:`~optuna.Study.optimize` to suppress suggesting similar grids. Please note
-            that fixing ``seed`` for each process is strongly recommended in distributed
-            optimization to avoid duplicated suggestions.
-    """
 
     def __init__(
         self, search_space: Mapping[str, Sequence[GridValueType]], seed: int | None = None
@@ -134,13 +53,7 @@ class GridSampler(BaseSampler):
         self._rng.rng.seed()
 
     def before_trial(self, study: Study, trial: FrozenTrial) -> None:
-        # Instead of returning param values, GridSampler puts the target grid id as a system attr,
-        # and the values are returned from `sample_independent`. This is because the distribution
-        # object is hard to get at the beginning of trial, while we need the access to the object
-        # to validate the sampled value.
 
-        # When the trial is created by RetryHeartbeatStaleTrialCallback or enqueue_trial, we
-        # should not assign a new grid_id.
         if "grid_id" in trial.system_attrs or "fixed_params" in trial.system_attrs:
             return
 
@@ -154,9 +67,6 @@ class GridSampler(BaseSampler):
         target_grids = self._get_unvisited_grid_ids(study)
 
         if len(target_grids) == 0:
-            # This case may occur with distributed optimization or trial queue. If there is no
-            # target grid, `GridSampler` evaluates a visited, duplicated point with the current
-            # trial. After that, the optimization stops.
 
             _logger.warning(
                 "`GridSampler` is re-evaluating a configuration because the grid has been "
@@ -164,20 +74,13 @@ class GridSampler(BaseSampler):
                 "or when re-running optimizations on already finished studies."
             )
 
-            # One of all grids is randomly picked up in this case.
             target_grids = list(range(len(self._all_grids)))
 
-        # In distributed optimization, multiple workers may simultaneously pick up the same grid.
-        # To make the conflict less frequent, the grid is chosen randomly.
         grid_id = int(self._rng.rng.choice(target_grids))
 
         study._storage.set_trial_system_attr(trial._trial_id, "search_space", self._search_space)
         study._storage.set_trial_system_attr(trial._trial_id, "grid_id", grid_id)
 
-    def infer_relative_search_space(
-        self, study: Study, trial: FrozenTrial
-    ) -> dict[str, BaseDistribution]:
-        return {}
 
     def sample_relative(
         self, study: Study, trial: FrozenTrial, search_space: dict[str, BaseDistribution]
@@ -239,13 +142,9 @@ class GridSampler(BaseSampler):
         optuna_warn(message)
 
     def _get_unvisited_grid_ids(self, study: Study) -> list[int]:
-        # List up unvisited grids based on already finished ones.
         visited_grids = []
         running_grids = []
 
-        # We directly query the storage to get trials here instead of `study.get_trials`,
-        # since some pruners such as `HyperbandPruner` use the study transformed
-        # to filter trials. See https://github.com/optuna/optuna/issues/2327 for details.
         trials = study._storage.get_all_trials(study._study_id, deepcopy=False)
 
         for t in trials:
@@ -259,8 +158,6 @@ class GridSampler(BaseSampler):
 
         unvisited_grids = set(range(self._n_min_trials)) - set(visited_grids) - set(running_grids)
 
-        # If evaluations for all grids have been started, return grids that have not yet finished
-        # because all grids should be evaluated before stopping the optimization.
         if len(unvisited_grids) == 0:
             unvisited_grids = set(range(self._n_min_trials)) - set(visited_grids)
 
@@ -287,7 +184,4 @@ class GridSampler(BaseSampler):
         return True
 
     def is_exhausted(self, study: Study) -> bool:
-        """
-        Return True if all the possible params are evaluated, otherwise return False.
-        """
-        return len(self._get_unvisited_grid_ids(study)) == 0
+        pass

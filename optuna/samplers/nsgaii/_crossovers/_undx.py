@@ -14,25 +14,6 @@ if TYPE_CHECKING:
 
 @experimental_class("3.0.0")
 class UNDXCrossover(BaseCrossover):
-    """Unimodal Normal Distribution Crossover used by :class:`~optuna.samplers.NSGAIISampler`.
-
-    Generates child individuals from the three parents
-    using a multivariate normal distribution.
-
-    - `H. Kita, I. Ono and S. Kobayashi,
-      Multi-parental extension of the unimodal normal distribution crossover
-      for real-coded genetic algorithms,
-      Proceedings of the 1999 Congress on Evolutionary Computation-CEC99
-      (Cat. No. 99TH8406), 1999, pp. 1581-1588 Vol. 2
-      <https://doi.org/10.1109/CEC.1999.782672>`__
-
-    Args:
-        sigma_xi:
-            Parametrizes normal distribution from which ``xi`` is drawn.
-        sigma_eta:
-            Parametrizes normal distribution from which ``etas`` are drawn.
-            If not specified, defaults to ``0.35 / sqrt(len(search_space))``.
-    """
 
     n_parents = 3
 
@@ -41,8 +22,6 @@ class UNDXCrossover(BaseCrossover):
         self._sigma_eta = sigma_eta
 
     def _distance_from_x_to_psl(self, parents_params: np.ndarray) -> np.floating:
-        # The line connecting x1 to x2 is called psl (primary search line).
-        # Compute the 2-norm of the vector orthogonal to psl from x3.
         e_12 = UNDXCrossover._normalized_x1_to_x2(
             parents_params
         )  # Normalized vector from x1 to x2.
@@ -53,7 +32,6 @@ class UNDXCrossover(BaseCrossover):
         return m_12_3
 
     def _orthonormal_basis_vector_to_psl(self, parents_params: np.ndarray, n: int) -> np.ndarray:
-        # Compute orthogonal basis vectors for the subspace orthogonal to psl.
         e_12 = UNDXCrossover._normalized_x1_to_x2(
             parents_params
         )  # Normalized vector from x1 to x2.
@@ -74,8 +52,6 @@ class UNDXCrossover(BaseCrossover):
         study: Study,
         search_space_bounds: np.ndarray,
     ) -> np.ndarray:
-        # https://doi.org/10.1109/CEC.1999.782672
-        # Section 2 Unimodal Normal Distribution Crossover
         n = len(search_space_bounds)
         xp = (parents_params[0] + parents_params[1]) / 2  # Section 2 (2).
         d = parents_params[0] - parents_params[1]  # Section 2 (3).
@@ -107,7 +83,6 @@ class UNDXCrossover(BaseCrossover):
 
     @staticmethod
     def _normalized_x1_to_x2(parents_params: np.ndarray) -> np.ndarray:
-        # Compute the normalized vector from x1 to x2.
         v_12 = parents_params[1] - parents_params[0]
         m_12 = np.linalg.norm(v_12, ord=2)
         e_12 = v_12 / np.clip(m_12, 1e-10, None)

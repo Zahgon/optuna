@@ -13,26 +13,7 @@ if TYPE_CHECKING:
     from optuna.trial._frozen import FrozenTrial
 
 
-# TODO(gen740): Add the experimental decorator?
 class BaseGASampler(BaseSampler, abc.ABC):
-    """Base class for Genetic Algorithm (GA) samplers.
-
-    Genetic Algorithm samplers generate new trials by mimicking natural selection, using
-    generations and populations to iteratively improve solutions. This base class defines the
-    interface for GA samplers in Optuna and provides utility methods for managing generations and
-    populations.
-
-    The selection process is handled by :meth:`~BaseGASampler.select_parent`, which must be
-    implemented by subclasses to define the parent selection strategy.
-
-    Generation and population management is facilitated by methods like
-    :meth:`~BaseGASampler.get_generation` and :meth:`~BaseGASampler.get_population`, ensuring
-    consistent tracking and selection.
-
-    Note:
-        This class should be extended by subclasses that define specific GA sampling strategies,
-        including parent selection and crossover operations.
-    """
 
     _GENERATION_KEY = "BaseGASampler:generation"
     _PARENT_CACHE_KEY_PREFIX = "BaseGASampler:parent:"
@@ -53,13 +34,7 @@ class BaseGASampler(BaseSampler, abc.ABC):
     def __init__(self, population_size: int | None):
         self._population_size = population_size
 
-    @property
-    def population_size(self) -> int | None:
-        return self._population_size
 
-    @population_size.setter
-    def population_size(self, value: int) -> None:
-        self._population_size = value
 
     @abc.abstractmethod
     def select_parent(self, study: Study, generation: int) -> list[FrozenTrial]:

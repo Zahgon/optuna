@@ -1,0 +1,41 @@
+{
+  "repo": "optuna/optuna",
+  "reference_commit": "b04f3d5a8bc65d676203962392af922cc5055eca",
+  "setup": {
+    "install": "pip install -e \".[test]\"",
+    "packages": "",
+    "pip_packages": [
+      "alembic>=1.5.0",
+      "colorlog",
+      "fakeredis[lua]",
+      "greenlet",
+      "grpcio",
+      "kaleido<0.4,!=0.2.1.post1",
+      "moto",
+      "numpy",
+      "packaging>=20.0",
+      "protobuf>=5.28.1",
+      "pytest",
+      "pytest-json-report",
+      "pytest-xdist",
+      "PyYAML",
+      "scipy>=1.9.2",
+      "sqlalchemy>=1.4.2",
+      "torch",
+      "tqdm"
+    ],
+    "pre_install": [
+      "apt-get install -y gfortran libffi-dev libopenblas-dev libyaml-dev"
+    ],
+    "python": "3.9",
+    "specification": "https://optuna.readthedocs.io",
+    "version_source": "pyproject.toml[project.requires-python]",
+    "version_conflicts": [],
+    "system_deps_hint": []
+  },
+  "test": {
+    "test_cmd": "pytest",
+    "test_dir": "tests"
+  },
+  "_schema": "kaiju-breadcrumb/1"
+}

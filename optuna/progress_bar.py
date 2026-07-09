@@ -16,30 +16,11 @@ if TYPE_CHECKING:
 _tqdm_handler: _TqdmLoggingHandler | None = None
 
 
-# Reference: https://gist.github.com/hvy/8b80c2cedf02b15c24f85d1fa17ebe02
 class _TqdmLoggingHandler(logging.StreamHandler):
-    def emit(self, record: Any) -> None:
-        try:
-            msg = self.format(record)
-            tqdm.write(msg)
-            self.flush()
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except Exception:
-            self.handleError(record)
+    pass
 
 
 class _ProgressBar:
-    """Progress Bar implementation for :func:`~optuna.study.Study.optimize` on the top of `tqdm`.
-
-    Args:
-        is_valid:
-            Whether to show progress bars in :func:`~optuna.study.Study.optimize`.
-        n_trials:
-            The number of trials.
-        timeout:
-            Stop study after the given number of second(s).
-    """
 
     def __init__(
         self,
@@ -85,7 +66,6 @@ class _ProgressBar:
 
         if self._is_valid:
             if not study._is_multi_objective():
-                # Not updating the progress bar when there are no complete trial.
                 try:
                     msg = (
                         f"Best trial: {study.best_trial.number}. "
@@ -106,7 +86,6 @@ class _ProgressBar:
             elif self._timeout is not None:
                 time_diff = elapsed_seconds - self._last_elapsed_seconds
                 if elapsed_seconds > self._timeout:
-                    # Clip elapsed time to avoid tqdm warnings.
                     time_diff -= elapsed_seconds - self._timeout
 
                 self._progress_bar.update(time_diff)

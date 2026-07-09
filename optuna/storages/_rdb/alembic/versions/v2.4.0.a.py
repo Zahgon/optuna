@@ -1,10 +1,3 @@
-"""empty message
-
-Revision ID: v2.4.0.a
-Revises: v1.3.0.a
-Create Date: 2020-11-17 02:16:16.536171
-
-"""
 
 from alembic import op
 import sqlalchemy as sa
@@ -24,17 +17,14 @@ from optuna.study import StudyDirection
 try:
     from sqlalchemy.orm import declarative_base
 except ImportError:
-    # TODO(c-bata): Remove this after dropping support for SQLAlchemy v1.3 or prior.
     from sqlalchemy.ext.declarative import declarative_base
 
 
-# revision identifiers, used by Alembic.
 revision = "v2.4.0.a"
 down_revision = "v1.3.0.a"
 branch_labels = None
 depends_on = None
 
-# Model definition
 BaseModel = declarative_base()
 
 
@@ -80,108 +70,7 @@ class TrialIntermediateValueModel(BaseModel):
     intermediate_value = Column(Float, nullable=False)
 
 
-def upgrade():
-    bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    tables = inspector.get_table_names()
-
-    if "study_directions" not in tables:
-        op.create_table(
-            "study_directions",
-            sa.Column("study_direction_id", sa.Integer(), nullable=False),
-            sa.Column(
-                "direction",
-                sa.Enum("NOT_SET", "MINIMIZE", "MAXIMIZE", name="studydirection"),
-                nullable=False,
-            ),
-            sa.Column("study_id", sa.Integer(), nullable=False),
-            sa.Column("objective", sa.Integer(), nullable=False),
-            sa.ForeignKeyConstraint(
-                ["study_id"],
-                ["studies.study_id"],
-            ),
-            sa.PrimaryKeyConstraint("study_direction_id"),
-            sa.UniqueConstraint("study_id", "objective"),
-        )
-
-    if "trial_intermediate_values" not in tables:
-        op.create_table(
-            "trial_intermediate_values",
-            sa.Column("trial_intermediate_value_id", sa.Integer(), nullable=False),
-            sa.Column("trial_id", sa.Integer(), nullable=False),
-            sa.Column("step", sa.Integer(), nullable=False),
-            sa.Column("intermediate_value", sa.Float(), nullable=False),
-            sa.ForeignKeyConstraint(
-                ["trial_id"],
-                ["trials.trial_id"],
-            ),
-            sa.PrimaryKeyConstraint("trial_intermediate_value_id"),
-            sa.UniqueConstraint("trial_id", "step"),
-        )
-
-    session = orm.Session(bind=bind)
-    try:
-        studies_records = session.query(StudyModel).all()
-        objects = [
-            StudyDirectionModel(study_id=r.study_id, direction=r.direction, objective=0)
-            for r in studies_records
-        ]
-        session.bulk_save_objects(objects)
-
-        intermediate_values_records = session.query(
-            TrialValueModel.trial_id, TrialValueModel.value, TrialValueModel.step
-        ).all()
-        objects = [
-            TrialIntermediateValueModel(
-                trial_id=r.trial_id, intermediate_value=r.value, step=r.step
-            )
-            for r in intermediate_values_records
-        ]
-        session.bulk_save_objects(objects)
-
-        session.query(TrialValueModel).delete()
-        session.commit()
-
-        with op.batch_alter_table("trial_values", schema=None) as batch_op:
-            batch_op.add_column(sa.Column("objective", sa.Integer(), nullable=False))
-            # The name of this constraint is manually determined.
-            # In the future, the naming convention may be determined based on
-            # https://alembic.sqlalchemy.org/en/latest/naming.html
-            batch_op.create_unique_constraint(
-                "uq_trial_values_trial_id_objective", ["trial_id", "objective"]
-            )
-
-        trials_records = session.query(TrialModel).all()
-        objects = [
-            TrialValueModel(trial_id=r.trial_id, value=r.value, objective=0)
-            for r in trials_records
-        ]
-        session.bulk_save_objects(objects)
-
-        session.commit()
-    except SQLAlchemyError as e:
-        session.rollback()
-        raise e
-    finally:
-        session.close()
-
-    with op.batch_alter_table("studies", schema=None) as batch_op:
-        batch_op.drop_column("direction")
-
-    with op.batch_alter_table("trial_values", schema=None) as batch_op:
-        batch_op.drop_column("step")
-
-    with op.batch_alter_table("trials", schema=None) as batch_op:
-        batch_op.drop_column("value")
-
-    for c in inspector.get_unique_constraints("trial_values"):
-        # MySQL changes the uniq constraint of (trial_id, step) to that of trial_id.
-        if c["column_names"] == ["trial_id"]:
-            with op.batch_alter_table("trial_values", schema=None) as batch_op:
-                batch_op.drop_constraint(c["name"], type_="unique")
-            break
 
 
-# TODO(imamura): Implement downgrade
 def downgrade():
     pass

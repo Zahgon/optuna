@@ -19,21 +19,9 @@ class _BatchedTruncNormDistributions(NamedTuple):
     low: float  # Currently, low and high do not change per trial.
     high: float
 
-    @property
-    def adapted_low(self) -> float:
-        return self.low
 
-    @property
-    def adapted_high(self) -> float:
-        return self.high
 
-    @property
-    def is_log(self) -> bool:
-        return False
 
-    @property
-    def step(self) -> float:
-        return 0.0
 
 
 class _BatchedTruncLogNormDistributions(NamedTuple):
@@ -42,21 +30,9 @@ class _BatchedTruncLogNormDistributions(NamedTuple):
     low: float  # Currently, low and high do not change per trial.
     high: float
 
-    @property
-    def adapted_low(self) -> float:
-        return math.log(self.low)
 
-    @property
-    def adapted_high(self) -> float:
-        return math.log(self.high)
 
-    @property
-    def is_log(self) -> bool:
-        return True
 
-    @property
-    def step(self) -> float:
-        return 0.0
 
 
 class _BatchedDiscreteTruncNormDistributions(NamedTuple):
@@ -66,17 +42,8 @@ class _BatchedDiscreteTruncNormDistributions(NamedTuple):
     high: float
     step: float
 
-    @property
-    def adapted_low(self) -> float:
-        return self.low - self.step / 2
 
-    @property
-    def adapted_high(self) -> float:
-        return self.high + self.step / 2
 
-    @property
-    def is_log(self) -> bool:
-        return False
 
 
 class _BatchedDiscreteTruncLogNormDistributions(NamedTuple):
@@ -86,17 +53,8 @@ class _BatchedDiscreteTruncLogNormDistributions(NamedTuple):
     high: float
     step: float
 
-    @property
-    def adapted_low(self) -> float:
-        return math.log(self.low - self.step / 2)
 
-    @property
-    def adapted_high(self) -> float:
-        return math.log(self.high + self.step / 2)
 
-    @property
-    def is_log(self) -> bool:
-        return True
 
 
 _BatchedDistributions = Union[
@@ -115,7 +73,6 @@ def _unique_inverse_2d(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.nda
     """
     assert a.shape == b.shape and len(a.shape) == 1
     order = np.argsort(b)
-    # Stable sorting is required for the tie breaking.
     order = order[np.argsort(a[order], kind="stable")]
     a_order = a[order]
     b_order = b[order]
@@ -213,7 +170,6 @@ class _MixtureOfProductDistribution(NamedTuple):
                     (left[:, np.newaxis] - mu_uniq) / sigma_uniq,
                     (right[:, np.newaxis] - mu_uniq) / sigma_uniq,
                 )[np.ix_(xi_inv, mu_sigma_inv)]
-                # Very unlikely to observe duplications below, so we skip the unique operation.
                 weighted_log_pdf -= _truncnorm._log_gauss_mass(
                     (d.adapted_low - mu_uniq) / sigma_uniq, (d.adapted_high - mu_uniq) / sigma_uniq
                 )[mu_sigma_inv]
@@ -231,7 +187,6 @@ class _MixtureOfProductDistribution(NamedTuple):
 
         weighted_log_pdf += np.log(self.weights[np.newaxis])
         max_ = weighted_log_pdf.max(axis=1)
-        # We need to avoid (-inf) - (-inf) when the probability is zero.
         max_[np.isneginf(max_)] = 0
         with np.errstate(divide="ignore"):  # Suppress warning in log(0).
             return np.log(np.exp(weighted_log_pdf - max_[:, None]).sum(axis=1)) + max_

@@ -120,8 +120,6 @@ def _get_edf_info(
 
     if target is None:
 
-        def _target(t: FrozenTrial) -> float:
-            return cast("float", t.value)
 
         target = _target
 

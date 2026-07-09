@@ -19,34 +19,7 @@ DEFAULT_STUDY_NAME_PREFIX = "no-name-"
 
 
 class BaseStorage(abc.ABC):
-    """Base class for storages.
 
-    This class is not supposed to be directly accessed by library users.
-
-    This class abstracts a backend database and provides internal interfaces to
-    read/write histories of studies and trials.
-
-    A storage class implementing this class must meet the following requirements.
-
-    **Thread safety**
-
-    A storage class instance can be shared among multiple threads, and must therefore be
-    thread-safe. It must guarantee that a data instance read from the storage must not be modified
-    by subsequent writes. For example, `FrozenTrial` instance returned by `get_trial`
-    should not be updated by the subsequent `set_trial_xxx`. This is usually achieved by replacing
-    the old data with a copy on `set_trial_xxx`.
-
-    A storage class can also assume that a data instance returned are never modified by its user.
-    When a user modifies a return value from a storage class, the internal state of the storage
-    may become inconsistent. Consequences are undefined.
-
-    **Ownership of RUNNING trials**
-
-    Trials in finished states are not allowed to be modified.
-    Trials in the WAITING state are not allowed to be modified except for the `state` field.
-    """
-
-    # Basic study manipulation
 
     @abc.abstractmethod
     def create_new_study(
@@ -128,7 +101,6 @@ class BaseStorage(abc.ABC):
         """
         raise NotImplementedError
 
-    # Basic study access
 
     @abc.abstractmethod
     def get_study_id_from_name(self, study_name: str) -> int:
@@ -225,7 +197,6 @@ class BaseStorage(abc.ABC):
         """
         raise NotImplementedError
 
-    # Basic trial manipulation
 
     @abc.abstractmethod
     def create_new_trial(self, study_id: int, template_trial: FrozenTrial | None = None) -> int:
@@ -299,24 +270,7 @@ class BaseStorage(abc.ABC):
         return trials[trial_number]._trial_id
 
     def get_trial_number_from_id(self, trial_id: int) -> int:
-        """Read the trial number of a trial.
-
-        .. note::
-
-            The trial number is only unique within a study, and is sequential.
-
-        Args:
-            trial_id:
-                ID of the trial.
-
-        Returns:
-            Number of the trial.
-
-        Raises:
-            :exc:`KeyError`:
-                If no trial with the matching ``trial_id`` exists.
-        """
-        return self.get_trial(trial_id).number
+        pass
 
     def get_trial_param(self, trial_id: int, param_name: str) -> float:
         """Read the parameter of a trial.
@@ -438,7 +392,6 @@ class BaseStorage(abc.ABC):
         """
         raise NotImplementedError
 
-    # Basic trial access
 
     @abc.abstractmethod
     def get_trial(self, trial_id: int) -> FrozenTrial:
@@ -487,26 +440,7 @@ class BaseStorage(abc.ABC):
     def get_n_trials(
         self, study_id: int, state: tuple[TrialState, ...] | TrialState | None = None
     ) -> int:
-        """Count the number of trials in a study.
-
-        Args:
-            study_id:
-                ID of the study.
-            state:
-                Trial states to filter on. If :obj:`None`, include all states.
-
-        Returns:
-            Number of trials in the study.
-
-        Raises:
-            :exc:`KeyError`:
-                If no study with the matching ``study_id`` exists.
-        """
-        # TODO(hvy): Align the name and the behavior or the `state` parameter with
-        # `get_all_trials`'s `states`.
-        if isinstance(state, TrialState):
-            state = (state,)
-        return len(self.get_all_trials(study_id, deepcopy=False, states=state))
+        pass
 
     def get_best_trial(self, study_id: int) -> FrozenTrial:
         """Return the trial with the best value in a study.
@@ -548,21 +482,7 @@ class BaseStorage(abc.ABC):
         return best_trial
 
     def get_trial_params(self, trial_id: int) -> dict[str, Any]:
-        """Read the parameter dictionary of a trial.
-
-        Args:
-            trial_id:
-                ID of the trial.
-
-        Returns:
-            Dictionary of a parameters. Keys are parameter names and values are external
-            representations of the parameter values.
-
-        Raises:
-            :exc:`KeyError`:
-                If no trial with the matching ``trial_id`` exists.
-        """
-        return self.get_trial(trial_id).params
+        pass
 
     def get_trial_user_attrs(self, trial_id: int) -> dict[str, Any]:
         """Read the user-defined attributes of a trial.

@@ -17,30 +17,6 @@ if TYPE_CHECKING:
 
 
 class RandomSampler(BaseSampler):
-    """Sampler using random sampling.
-
-    This sampler is based on *independent sampling*.
-    See also :class:`~optuna.samplers.BaseSampler` for more details of 'independent sampling'.
-
-    Example:
-
-        .. testcode::
-
-            import optuna
-            from optuna.samplers import RandomSampler
-
-
-            def objective(trial):
-                x = trial.suggest_float("x", -5, 5)
-                return x**2
-
-
-            study = optuna.create_study(sampler=RandomSampler())
-            study.optimize(objective, n_trials=10)
-
-    Args:
-        seed: Seed for random number generator.
-    """
 
     def __init__(self, seed: int | None = None) -> None:
         self._rng = LazyRandomState(seed)
@@ -48,10 +24,6 @@ class RandomSampler(BaseSampler):
     def reseed_rng(self) -> None:
         self._rng.rng.seed()
 
-    def infer_relative_search_space(
-        self, study: Study, trial: FrozenTrial
-    ) -> dict[str, BaseDistribution]:
-        return {}
 
     def sample_relative(
         self, study: Study, trial: FrozenTrial, search_space: dict[str, BaseDistribution]

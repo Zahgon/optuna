@@ -33,7 +33,6 @@ _logger = optuna.logging.get_logger(__name__)
 
 NOT_FOUND_MSG = "Record does not exist."
 UNUPDATABLE_MSG = "Trial#{trial_number} has already finished and can not be updated."
-# A heuristic interval number to dump snapshots
 SNAPSHOT_INTERVAL = 100
 
 
@@ -51,52 +50,6 @@ class JournalOperation(enum.IntEnum):
 
 
 class JournalStorage(BaseStorage):
-    """Storage class for Journal storage backend.
-
-    Note that library users can instantiate this class, but the attributes
-    provided by this class are not supposed to be directly accessed by them.
-
-    Journal storage writes a record of every operation to the database as it is executed and
-    at the same time, keeps a latest snapshot of the database in-memory. If the database crashes
-    for any reason, the storage can re-establish the contents in memory by replaying the
-    operations stored from the beginning.
-
-    Journal storage has several benefits over the conventional value logging storages.
-
-    1. The number of IOs can be reduced because of larger granularity of logs.
-    2. Journal storage has simpler backend API than value logging storage.
-    3. Journal storage keeps a snapshot in-memory so no need to add more cache.
-
-    Example:
-
-        .. code::
-
-            import optuna
-
-
-            def objective(trial): ...
-
-
-            storage = optuna.storages.JournalStorage(
-                optuna.storages.journal.JournalFileBackend("./optuna_journal_storage.log")
-            )
-
-            study = optuna.create_study(storage=storage)
-            study.optimize(objective)
-
-    In a Windows environment, an error message "A required privilege is not held by the
-    client" may appear. In this case, you can solve the problem with creating storage
-    by specifying :class:`~optuna.storages.journal.JournalFileOpenLock` as follows.
-
-    .. code::
-
-        file_path = "./optuna_journal_storage.log"
-        lock_obj = optuna.storages.journal.JournalFileOpenLock(file_path)
-
-        storage = optuna.storages.JournalStorage(
-            optuna.storages.journal.JournalFileBackend(file_path, lock_obj=lock_obj),
-        )
-    """
 
     def __init__(self, log_storage: BaseJournalBackend) -> None:
         self._worker_id_prefix = str(uuid.uuid4()) + "-"
@@ -166,7 +119,6 @@ class JournalStorage(BaseStorage):
                 _logger.info(f"A new study created in Journal with name: {study_name}")
                 study_id = frozen_study._study_id
 
-                # Dump snapshot here.
                 if (
                     isinstance(self._backend, BaseJournalSnapshot)
                     and study_id != 0
@@ -227,7 +179,6 @@ class JournalStorage(BaseStorage):
             self._sync_with_backend()
             return copy.deepcopy(self._replay_result.get_all_studies())
 
-    # Basic trial manipulation
     def create_new_trial(self, study_id: int, template_trial: FrozenTrial | None = None) -> int:
         log: dict[str, Any] = {
             "study_id": study_id,
@@ -269,7 +220,6 @@ class JournalStorage(BaseStorage):
             self._sync_with_backend()
             trial_id = self._replay_result._last_created_trial_id_by_this_process
 
-            # Dump snapshot here.
             if (
                 isinstance(self._backend, BaseJournalSnapshot)
                 and trial_id != 0
@@ -319,19 +269,7 @@ class JournalStorage(BaseStorage):
 
         with self._thread_lock:
             if state == TrialState.RUNNING:
-                # NOTE(nabenabe): This sync is not necessary because the last
-                # set_trial_state_values call by the same thread always syncs before the true pop,
-                # but I keep it here to avoid the confusion. Anyways, this section isn't triggered
-                # that often because this section is only for enqueue_trial.
                 self._sync_with_backend()
-                # NOTE(nabenabe): This section is triggered only when we are using `enqueue_trial`
-                # and `GrpcProxyStorage` in distributed optimization setups and solves the issue
-                # https://github.com/optuna/optuna/issues/6084.
-                # When using gRPC, the current thread may already have popped the trial with
-                # trial_id for another process, potentially leading to a false positive in the
-                # return statement of trial_id == _replay_result.owned_trial_id. To eliminate false
-                # positives, we verify whether another process is already evaluating the trial with
-                # trial_id. If True, it means this query does not update the trial state.
                 existing_trial = self._replay_result._trials.get(trial_id)
                 assert existing_trial is not None, (
                     "Please report your bug on GitHub if this line fails your script."
@@ -341,7 +279,6 @@ class JournalStorage(BaseStorage):
                         UNUPDATABLE_MSG.format(trial_number=existing_trial.number)
                     )
                 if existing_trial.state != TrialState.WAITING:
-                    # This line is equivalent to `existing_trial.state == TrialState.RUNNING`.
                     return False
             self._write_log(JournalOperation.SET_TRIAL_STATE_VALUES, log)
             self._sync_with_backend()
@@ -464,13 +401,7 @@ class JournalStorageReplayResult:
                 frozen_trials.append(trial)
         return frozen_trials
 
-    @property
-    def worker_id(self) -> str:
-        return self._worker_id_prefix + str(threading.get_ident())
 
-    @property
-    def owned_trial_id(self) -> int | None:
-        return self._worker_id_to_owned_trial_id.get(self.worker_id)
 
     def _is_issued_by_this_worker(self, log: dict[str, Any]) -> bool:
         return log["worker_id"] == self.worker_id
@@ -616,7 +547,6 @@ class JournalStorageReplayResult:
 
         state = TrialState(log["state"])
         if state == self._trials[trial_id].state and state == TrialState.RUNNING:
-            # Reject the operation as the popped trial is already run by another process.
             return
 
         trial = copy.copy(self._trials[trial_id])

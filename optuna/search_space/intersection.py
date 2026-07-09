@@ -56,23 +56,6 @@ def _calculate(
 
 
 class IntersectionSearchSpace:
-    """A class to calculate the intersection search space of a :class:`~optuna.study.Study`.
-
-    Intersection search space contains the intersection of parameter distributions that have been
-    suggested in the completed trials of the study so far.
-    If there are multiple parameters that have the same name but different distributions,
-    neither is included in the resulting search space
-    (i.e., the parameters with dynamic value ranges are excluded).
-
-    Note that an instance of this class is supposed to be used for only one study.
-    If different studies are passed to
-    :func:`~optuna.search_space.IntersectionSearchSpace.calculate`,
-    a :obj:`ValueError` is raised.
-
-    Args:
-        include_pruned:
-            Whether pruned trials should be included in the search space.
-    """
 
     def __init__(self, include_pruned: bool = False) -> None:
         self._cached_trial_number: int = -1
@@ -82,39 +65,7 @@ class IntersectionSearchSpace:
         self._include_pruned = include_pruned
 
     def calculate(self, study: Study, use_cache: bool = False) -> dict[str, BaseDistribution]:
-        """Returns the intersection search space of the :class:`~optuna.study.Study`.
-
-        Args:
-            study:
-                A study with completed trials. The same study must be passed for one instance
-                of this class through its lifetime.
-            use_cache:
-                An option to use cached trials for each trial.
-
-        Returns:
-            A dictionary containing the parameter names and parameter's distributions sorted by
-            parameter names.
-        """
-
-        if self._study_id is None:
-            self._study_id = study._study_id
-        else:
-            # Note that the check below is meaningless when
-            # :class:`~optuna.storages.InMemoryStorage` is used because
-            # :func:`~optuna.storages.InMemoryStorage.create_new_study`
-            # always returns the same study ID.
-            if self._study_id != study._study_id:
-                raise ValueError("`IntersectionSearchSpace` cannot handle multiple studies.")
-
-        self._search_space, self._cached_trial_number = _calculate(
-            study._get_trials(deepcopy=False, use_cache=use_cache),
-            self._include_pruned,
-            self._search_space,
-            self._cached_trial_number,
-        )
-        search_space = self._search_space or {}
-        search_space = dict(sorted(search_space.items(), key=lambda x: x[0]))
-        return copy.deepcopy(search_space)
+        pass
 
 
 def intersection_search_space(

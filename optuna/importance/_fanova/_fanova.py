@@ -1,20 +1,3 @@
-"""An implementation of `An Efficient Approach for Assessing Hyperparameter Importance`.
-
-See http://proceedings.mlr.press/v32/hutter14.pdf and https://automl.github.io/fanova/cite.html
-for how to cite the original work.
-
-This implementation is inspired by the efficient algorithm in
-`fanova` (https://github.com/automl/fanova) and
-`pyrfr` (https://github.com/automl/random_forest_run) by the original authors.
-
-Differences include relying on scikit-learn to fit random forests
-(`sklearn.ensemble.RandomForestRegressor`) and that it is otherwise written entirely in Python.
-This stands in contrast to the original implementation which is partially written in C++.
-Since Python runtime overhead may become noticeable, included are instead several
-optimizations, e.g. vectorized NumPy functions to compute the marginals, instead of keeping all
-running statistics. Known cases include assessing categorical features with a larger
-number of choices since each choice is given a unique one-hot encoded raw feature.
-"""
 
 from __future__ import annotations
 
@@ -68,12 +51,9 @@ class _Fanova:
         self._variances = {}
 
         if all(tree.variance == 0 for tree in self._trees):
-            # If all trees have 0 variance, we cannot assess any importances.
-            # This could occur if for instance `X.shape[0] == 1`.
             raise RuntimeError("Encountered zero total variance in all trees.")
 
     def get_importance(self, feature: int) -> tuple[float, float]:
-        # Assert that `fit` has been called.
         assert self._trees is not None
         assert self._variances is not None
 

@@ -35,13 +35,8 @@ DEFAULT_MIN_N_TRIALS = 20
 
 
 def _get_beta(n_params: int, n_trials: int, delta: float = 0.1) -> float:
-    # TODO(nabenabe0928): Check the original implementation to verify.
-    # Especially, |D| seems to be the domain size, but not the dimension based on Theorem 1.
     beta = 2 * np.log(n_params * n_trials**2 * np.pi**2 / 6 / delta)
 
-    # The following div is according to the original paper: "We then further scale it down
-    # by a factor of 5 as defined in the experiments in
-    # `Srinivas et al. (2010) <https://dl.acm.org/doi/10.5555/3104322.3104451>`__"
     beta /= 5
 
     return beta
@@ -66,27 +61,21 @@ def _compute_standardized_regret_bound(
 
     n_trials, n_params = normalized_top_n_params.shape
 
-    # calculate max_ucb
     beta = _get_beta(n_params, n_trials, delta)
     ucb_acqf = acqf_module.UCB(gpr, search_space, beta)
-    # UCB over the search space. (Original: LCB over the search space. See Change 1 above.)
     standardized_ucb_value = max(
         ucb_acqf.eval_acqf_no_grad(normalized_top_n_params).max(),
         optim_sample.optimize_acqf_sample(ucb_acqf, n_samples=optimize_n_samples, rng=rng)[1],
     )
 
-    # calculate min_lcb
     lcb_acqf = acqf_module.LCB(gpr=gpr, search_space=search_space, beta=beta)
-    # LCB over the top trials. (Original: UCB over the top trials. See Change 2 above.)
     standardized_lcb_value = np.max(lcb_acqf.eval_acqf_no_grad(normalized_top_n_params))
 
-    # max(UCB) - max(LCB). (Original: min(UCB) - min(LCB). See Change 3 above.)
     return standardized_ucb_value - standardized_lcb_value  # standardized regret bound
 
 
 @experimental_class("3.2.0")
 class BaseImprovementEvaluator(metaclass=abc.ABCMeta):
-    """Base class for improvement evaluators."""
 
     @abc.abstractmethod
     def evaluate(self, trials: list[FrozenTrial], study_direction: StudyDirection) -> float:
@@ -95,26 +84,6 @@ class BaseImprovementEvaluator(metaclass=abc.ABCMeta):
 
 @experimental_class("3.2.0")
 class RegretBoundEvaluator(BaseImprovementEvaluator):
-    """An error evaluator for upper bound on the regret with high-probability confidence.
-
-    This evaluator evaluates the regret of current best solution, which defined as the difference
-    between the objective value of the best solution and of the global optimum. To be specific,
-    this evaluator calculates the upper bound on the regret based on the fact that empirical
-    estimator of the objective function is bounded by lower and upper confidence bounds with
-    high probability under the Gaussian process model assumption.
-
-    Args:
-        top_trials_ratio:
-            A ratio of top trials to be considered when estimating the regret. Default to 0.5.
-        min_n_trials:
-            A minimum number of complete trials to estimate the regret. Default to 20.
-        seed:
-            Seed for random number generator.
-
-    For further information about this evaluator, please refer to the following paper:
-
-    - `Automatic Termination for Hyperparameter Optimization <https://proceedings.mlr.press/v188/makarova22a.html>`__
-    """  # NOQA: E501
 
     def __init__(
         self,
@@ -145,7 +114,6 @@ class RegretBoundEvaluator(BaseImprovementEvaluator):
 
         complete_trials = [t for t in trials if t.state == TrialState.COMPLETE]
 
-        # _gp module assumes that optimization direction is maximization
         sign = -1 if study_direction == StudyDirection.MINIMIZE else 1
         values = np.array([t.value for t in complete_trials]) * sign
         search_space = gp_search_space.SearchSpace(optuna_search_space)
@@ -161,9 +129,7 @@ class RegretBoundEvaluator(BaseImprovementEvaluator):
             is_categorical=search_space.is_categorical,
             log_prior=self._log_prior,
             minimum_noise=self._minimum_noise,
-            # TODO(contramundum53): Add option to specify this.
             deterministic_objective=False,
-            # TODO(y0z): Add `kernel_params_cache` to speedup.
             gpr_cache=None,
         )
 
@@ -194,17 +160,6 @@ class RegretBoundEvaluator(BaseImprovementEvaluator):
 
 @experimental_class("3.4.0")
 class BestValueStagnationEvaluator(BaseImprovementEvaluator):
-    """Evaluates the stagnation period of the best value in an optimization process.
-
-    This class is initialized with a maximum stagnation period (``max_stagnation_trials``)
-    and is designed to evaluate the remaining trials before reaching this maximum period
-    of allowed stagnation. If this remaining trials reach zero, the trial terminates.
-    Therefore, the default error evaluator is instantiated by ``StaticErrorEvaluator(const=0)``.
-
-    Args:
-        max_stagnation_trials:
-            The maximum number of trials allowed for stagnation.
-    """
 
     def __init__(self, max_stagnation_trials: int = 30) -> None:
         if max_stagnation_trials < 0:

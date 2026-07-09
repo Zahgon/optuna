@@ -8,15 +8,6 @@ from optuna._deprecated import deprecated_class
 
 
 class BaseJournalBackend(abc.ABC):
-    """Base class for Journal storages.
-
-    Storage classes implementing this base class must guarantee process safety. This means,
-    multiple processes might concurrently call ``read_logs`` and ``append_logs``. If the
-    backend storage does not internally support mutual exclusion mechanisms, such as locks,
-    you might want to use :class:`~optuna.storages.journal.JournalFileSymlinkLock` or
-    :class:`~optuna.storages.journal.JournalFileOpenLock` for creating a critical section.
-
-    """
 
     @abc.abstractmethod
     def read_logs(self, log_number_from: int) -> Iterable[dict[str, Any]]:
@@ -47,11 +38,6 @@ class BaseJournalBackend(abc.ABC):
 
 
 class BaseJournalSnapshot(abc.ABC):
-    """Optional base class for Journal storages.
-
-    Storage classes implementing this base class may work faster when
-    constructing the internal state from the large amount of logs.
-    """
 
     @abc.abstractmethod
     def save_snapshot(self, snapshot: bytes) -> None:
@@ -76,12 +62,4 @@ class BaseJournalSnapshot(abc.ABC):
     "4.0.0", "6.0.0", text="Use :class:`~optuna.storages.journal.BaseJournalBackend` instead."
 )
 class BaseJournalLogStorage(BaseJournalBackend):
-    """Base class for Journal storages.
-
-    Storage classes implementing this base class must guarantee process safety. This means,
-    multiple processes might concurrently call ``read_logs`` and ``append_logs``. If the
-    backend storage does not internally support mutual exclusion mechanisms, such as locks,
-    you might want to use :class:`~optuna.storages.journal.JournalFileSymlinkLock` or
-    :class:`~optuna.storages.journal.JournalFileOpenLock` for creating a critical section.
-
-    """
+    pass

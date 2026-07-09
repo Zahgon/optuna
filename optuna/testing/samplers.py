@@ -14,10 +14,6 @@ class DeterministicSampler(optuna.samplers.BaseSampler):
     def __init__(self, params: dict[str, Any]) -> None:
         self.params = params
 
-    def infer_relative_search_space(
-        self, study: "optuna.study.Study", trial: "optuna.trial.FrozenTrial"
-    ) -> dict[str, BaseDistribution]:
-        return {}
 
     def sample_relative(
         self,

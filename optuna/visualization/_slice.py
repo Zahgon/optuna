@@ -66,8 +66,6 @@ def _get_slice_subplot_info(
 ) -> _SliceSubplotInfo:
     if target is None:
 
-        def _target(t: FrozenTrial) -> float:
-            return cast("float", t.value)
 
         target = _target
 
@@ -222,7 +220,6 @@ def _get_slice_plot(info: _SlicePlotInfo) -> "go.Figure":
             elif subplot_info.is_log:
                 figure.update_xaxes(type="log", row=1, col=column_index)
         if len(info.subplots) > 3:
-            # Ensure that each subplot has a minimum width without relying on autusizing.
             figure.update_layout(width=300 * len(info.subplots))
 
     return figure

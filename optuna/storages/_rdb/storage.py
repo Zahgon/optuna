@@ -104,104 +104,6 @@ def _create_scoped_session(
 
 
 class RDBStorage(BaseStorage, BaseHeartbeat):
-    """Storage class for RDB backend.
-
-    Note that library users can instantiate this class, but the attributes
-    provided by this class are not supposed to be directly accessed by them.
-
-    Example:
-
-        Create an :class:`~optuna.storages.RDBStorage` instance with customized
-        ``pool_size`` and ``timeout`` settings.
-
-        .. testcode::
-
-            import optuna
-
-
-            def objective(trial):
-                x = trial.suggest_float("x", -100, 100)
-                return x**2
-
-
-            storage = optuna.storages.RDBStorage(
-                url="sqlite:///:memory:",
-                engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}},
-            )
-
-            study = optuna.create_study(storage=storage)
-            study.optimize(objective, n_trials=10)
-
-    Args:
-        url:
-            URL of the storage.
-        engine_kwargs:
-            A dictionary of keyword arguments that is passed to
-            `sqlalchemy.engine.create_engine`_ function.
-        skip_compatibility_check:
-            Flag to skip schema compatibility check if set to :obj:`True`.
-        heartbeat_interval:
-            Interval to record the heartbeat. It is recorded every ``interval`` seconds.
-            ``heartbeat_interval`` must be :obj:`None` or a positive integer.
-
-            .. note::
-                Heartbeat mechanism is experimental. API would change in the future.
-
-            .. note::
-                The heartbeat is supposed to be used with :meth:`~optuna.study.Study.optimize`.
-                If you use :meth:`~optuna.study.Study.ask` and
-                :meth:`~optuna.study.Study.tell` instead, it will not work.
-
-        grace_period:
-            Grace period before a running trial is failed from the last heartbeat.
-            ``grace_period`` must be :obj:`None` or a positive integer.
-            If it is :obj:`None`, the grace period will be `2 * heartbeat_interval`.
-        heartbeat_stale_trial_callback:
-            A callback function that is invoked after failing each heartbeat-stale trial.
-            The function must accept two parameters with the following types in this order:
-            :class:`~optuna.study.Study` and :class:`~optuna.trial.FrozenTrial`.
-
-            .. note::
-                The procedure to fail existing stale trials is called just before asking the
-                study for a new trial.
-        failed_trial_callback:
-            Deprecated in v4.9.0. This argument will be removed in v6.0.0.
-            Use ``heartbeat_stale_trial_callback`` instead.
-
-        skip_table_creation:
-            Flag to skip table creation if set to :obj:`True`.
-
-    .. _sqlalchemy.engine.create_engine:
-        https://docs.sqlalchemy.org/en/latest/core/engines.html#sqlalchemy.create_engine
-
-    .. note::
-        If you use MySQL, `pool_pre_ping`_ will be set to :obj:`True` by default to prevent
-        connection timeout. You can turn it off with ``engine_kwargs['pool_pre_ping']=False``, but
-        it is recommended to keep the setting if execution time of your objective function is
-        longer than the `wait_timeout` of your MySQL configuration.
-
-    .. _pool_pre_ping:
-        https://docs.sqlalchemy.org/en/13/core/engines.html#sqlalchemy.create_engine.params.
-        pool_pre_ping
-
-    .. note::
-        We would never recommend SQLite3 for parallel optimization.
-        Please see the FAQ :ref:`sqlite_concurrency` for details.
-
-    .. note::
-        Mainly in a cluster environment, running trials are often killed unexpectedly.
-        If you want to detect a failure of trials, please use the heartbeat
-        mechanism. Set ``heartbeat_interval``, ``grace_period``, and
-        ``heartbeat_stale_trial_callback`` appropriately according to your use case.
-        For more details, please refer to the :ref:`tutorial <heartbeat_monitoring>` and
-        `Example page
-        <https://github.com/optuna/optuna-examples/blob/main/pytorch/pytorch_checkpoint.py>`__.
-
-    .. seealso::
-        You can use :class:`~optuna.storages.RetryHeartbeatStaleTrialCallback` to automatically
-        retry heartbeat-stale trials.
-
-    """
 
     def __init__(
         self,
@@ -381,7 +283,6 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
 
     def get_study_user_attrs(self, study_id: int) -> dict[str, Any]:
         with _create_scoped_session(self.scoped_session) as session:
-            # Ensure that that study exists.
             models.StudyModel.find_or_raise_by_id(study_id, session)
             attributes = models.StudyUserAttributeModel.where_study_id(study_id, session)
             user_attrs = {attr.key: json.loads(attr.value_json) for attr in attributes}
@@ -390,7 +291,6 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
 
     def get_study_system_attrs(self, study_id: int) -> dict[str, Any]:
         with _create_scoped_session(self.scoped_session) as session:
-            # Ensure that that study exists.
             models.StudyModel.find_or_raise_by_id(study_id, session)
             attributes = models.StudySystemAttributeModel.where_study_id(study_id, session)
             system_attrs = {attr.key: json.loads(attr.value_json) for attr in attributes}
@@ -399,7 +299,6 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
 
     def get_trial_user_attrs(self, trial_id: int) -> dict[str, Any]:
         with _create_scoped_session(self.scoped_session) as session:
-            # Ensure trial exists.
             models.TrialModel.find_or_raise_by_id(trial_id, session)
 
             attributes = models.TrialUserAttributeModel.where_trial_id(trial_id, session)
@@ -409,7 +308,6 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
 
     def get_trial_system_attrs(self, trial_id: int) -> dict[str, Any]:
         with _create_scoped_session(self.scoped_session) as session:
-            # Ensure trial exists.
             models.TrialModel.find_or_raise_by_id(trial_id, session)
 
             attributes = models.TrialSystemAttributeModel.where_trial_id(trial_id, session)
@@ -501,26 +399,17 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
                 trial_id=trial.trial_id,
             )
 
-        # Retry maximum five times. Deadlocks may occur in distributed environments.
         MAX_RETRIES = 5
         for n_retries in range(1, MAX_RETRIES + 1):
             try:
                 with _create_scoped_session(self.scoped_session) as session:
-                    # This lock is necessary because the trial creation is not an atomic operation
-                    # and the calculation of trial.number is prone to race conditions.
                     models.StudyModel.find_or_raise_by_id(study_id, session, for_update=True)
                     trial = self._get_prepared_new_trial(study_id, template_trial, session)
                     return _create_frozen_trial(trial, template_trial)
-            # sqlalchemy_exc.OperationalError is converted to ``StorageInternalError``.
             except optuna.exceptions.StorageInternalError as e:
-                # ``OperationalError`` happens either by (1) invalid inputs, e.g., too long string,
-                # or (2) timeout error, which relates to deadlock. Although Error (1) is not
-                # intended to be caught here, it must be fixed to use RDBStorage anyways.
                 if n_retries == MAX_RETRIES:
                     raise e
 
-                # Optuna defers to the DB administrator to reduce DB server congestion, hence
-                # Optuna simply uses non-exponential backoff here for retries caused by deadlock.
                 time.sleep(random.random() * 2.0)
 
         assert False, "Should not be reached."
@@ -539,10 +428,6 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
                 datetime_start=datetime.now(),
             )
         else:
-            # Because only `RUNNING` trials can be updated,
-            # we temporarily set the state of the new trial to `RUNNING`.
-            # After all fields of the trial have been updated,
-            # the state is set to `template_trial.state`.
             temp_state = TrialState.RUNNING
 
             trial = models.TrialModel(
@@ -555,11 +440,6 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
 
         session.add(trial)
 
-        # Flush the session cache to reflect the above addition operation to
-        # the current RDB transaction.
-        #
-        # Without flushing, the following operations (e.g, `_set_trial_param_without_commit`)
-        # will fail because the target trial doesn't exist in the storage yet.
         session.flush()
 
         if template_trial is not None:
@@ -818,7 +698,6 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
             )
             session.execute(pg_upsert_stmt)
         else:
-            # TODO(porink0424): Add support for other databases.
             attribute = model_cls.find_by_trial_and_key(trial, key, session)
             if attribute is None:
                 attribute = model_cls(trial_id=trial_id, key=key, value_json=json.dumps(value))
@@ -872,7 +751,6 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
         )
 
         with _create_scoped_session(self.scoped_session) as session:
-            # Ensure that the study exists.
             models.StudyModel.find_or_raise_by_id(study_id, session)
             query = (
                 session.query(models.TrialModel)
@@ -887,8 +765,6 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
             )
 
             if states is not None:
-                # This assertion is for type checkers, since `states` is required to be Container
-                # in the base class while `models.TrialModel.state.in_` requires Iterable.
                 assert isinstance(states, Iterable)
                 query = query.filter(models.TrialModel.state.in_(states))
 
@@ -906,10 +782,6 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
                     _query = query
                 trial_models = _query.order_by(models.TrialModel.trial_id).all()
             except sqlalchemy_exc.OperationalError as e:
-                # Likely exceeding the number of maximum allowed variables using IN.
-                # This number differ between database dialects. For SQLite for instance, see
-                # https://www.sqlite.org/limits.html and the section describing
-                # SQLITE_MAX_VARIABLE_NUMBER.
 
                 _logger.warning(
                     f"Caught an error from sqlalchemy: {e!s}. "
@@ -989,18 +861,12 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
 
     @staticmethod
     def _set_default_engine_kwargs_for_mysql(url: str, engine_kwargs: dict[str, Any]) -> None:
-        # Skip if RDB is not MySQL.
         if not url.startswith("mysql"):
             return
 
-        # Do not overwrite value.
         if "pool_pre_ping" in engine_kwargs:
             return
 
-        # If True, the connection pool checks liveness of connections at every checkout.
-        # Without this option, trials that take longer than `wait_timeout` may cause connection
-        # errors. For further details, please refer to the following document:
-        # https://docs.sqlalchemy.org/en/13/core/pooling.html#pool-disconnects-pessimistic
         engine_kwargs["pool_pre_ping"] = True
         _logger.debug("pool_pre_ping=True was set to engine_kwargs to prevent connection timeout.")
 
@@ -1024,9 +890,7 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
         self.scoped_session.remove()
 
     def upgrade(self) -> None:
-        """Upgrade the storage schema."""
-
-        self._version_manager.upgrade()
+        pass
 
     def get_current_version(self) -> str:
         """Return the schema version currently used by this storage."""
@@ -1043,18 +907,6 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
 
         return self._version_manager.get_all_versions()
 
-    def record_heartbeat(self, trial_id: int) -> None:
-        with _create_scoped_session(self.scoped_session, True) as session:
-            # Fetch heartbeat with read-only.
-            heartbeat = models.TrialHeartbeatModel.where_trial_id(trial_id, session)
-            if heartbeat is None:  # heartbeat record does not exist.
-                heartbeat = models.TrialHeartbeatModel(trial_id=trial_id)
-                session.add(heartbeat)
-            else:
-                # Re-fetch the existing heartbeat with the write authorization.
-                heartbeat = models.TrialHeartbeatModel.where_trial_id(trial_id, session, True)
-                assert heartbeat is not None
-                heartbeat.heartbeat = session.execute(sqlalchemy.func.now()).scalar()
 
     def _get_stale_trial_ids(self, study_id: int) -> list[int]:
         assert self.heartbeat_interval is not None
@@ -1067,9 +919,6 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
         with _create_scoped_session(self.scoped_session, True) as session:
             current_heartbeat = session.execute(sqlalchemy.func.now()).scalar()
             assert current_heartbeat is not None
-            # Added the following line to prevent mixing of timezone-aware and timezone-naive
-            # `datetime` in PostgreSQL. See
-            # https://github.com/optuna/optuna/pull/2190#issuecomment-766605088 for details
             current_heartbeat = current_heartbeat.replace(tzinfo=None)
 
             running_trials = (
@@ -1131,13 +980,11 @@ class _VersionManager:
             is_initialized = context.get_current_revision() is not None
 
             if is_initialized:
-                # The `alembic_version` table already exists and is not empty.
                 return
 
             if self._is_alembic_supported():
                 revision = self.get_head_version()
             else:
-                # The storage has been created before alembic is introduced.
                 revision = self._get_base_version()
 
         self._set_alembic_revision(revision)
@@ -1151,8 +998,6 @@ class _VersionManager:
 
     def check_table_schema_compatibility(self) -> None:
         with _create_scoped_session(self.scoped_session) as session:
-            # NOTE: After invocation of `_init_version_info_model` method,
-            #       it is ensured that a `VersionInfoModel` entry exists.
             version_info = models.VersionInfoModel.find(session)
 
             assert version_info is not None
@@ -1205,22 +1050,12 @@ class _VersionManager:
         script = self._create_alembic_script()
         return [r.revision for r in script.walk_revisions()]
 
-    def upgrade(self) -> None:
-        config = self._create_alembic_config()
-        alembic_command.upgrade(config, "head")
-
-        with _create_scoped_session(self.scoped_session, True) as session:
-            version_info = models.VersionInfoModel.find(session)
-            assert version_info is not None
-            version_info.schema_version = models.SCHEMA_VERSION
-            version_info.library_version = version.__version__
 
     def _is_alembic_supported(self) -> bool:
         with _create_scoped_session(self.scoped_session) as session:
             version_info = models.VersionInfoModel.find(session)
 
             if version_info is None:
-                # `None` means this storage was created just now.
                 return True
 
             return version_info.schema_version == models.SCHEMA_VERSION
@@ -1240,7 +1075,4 @@ class _VersionManager:
 
 
 def escape_alembic_config_value(value: str) -> str:
-    # We must escape '%' in a value string because the character
-    # is regarded as the trigger of variable expansion.
-    # Please see the documentation of `configparser.BasicInterpolation` for more details.
     return value.replace("%", "%%")

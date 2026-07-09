@@ -16,19 +16,6 @@ from optuna.trial import TrialState
 
 
 class BaseHeartbeat(metaclass=abc.ABCMeta):
-    """Base class for heartbeat.
-
-    This class is not supposed to be directly accessed by library users.
-
-    The heartbeat mechanism periodically checks whether each trial process is alive during an
-    optimization loop. To support this mechanism, the methods of
-    :class:`~optuna.storages._heartbeat.BaseHeartbeat` is implemented for the target database
-    backend, typically with multiple inheritance of :class:`~optuna.storages._base.BaseStorage`
-    and :class:`~optuna.storages._heartbeat.BaseHeartbeat`.
-
-    .. seealso::
-        See :class:`~optuna.storages.RDBStorage`, where the backend supports heartbeat.
-    """
 
     @abc.abstractmethod
     def record_heartbeat(self, trial_id: int) -> None:
@@ -78,8 +65,7 @@ class BaseHeartbeat(metaclass=abc.ABCMeta):
         text="Use `get_heartbeat_stale_trial_callback` instead.",
     )
     def get_failed_trial_callback(self) -> Callable[["optuna.Study", FrozenTrial], None] | None:
-        """Get the failed trial callback function."""
-        return self.get_heartbeat_stale_trial_callback()
+        pass
 
 
 class BaseHeartbeatThread(metaclass=abc.ABCMeta):
@@ -134,14 +120,6 @@ class HeartbeatThread(BaseHeartbeatThread):
         self._stop_event.set()
         self._thread.join()
 
-    @staticmethod
-    def _record_heartbeat(trial_id: int, heartbeat: BaseHeartbeat, stop_event: Event) -> None:
-        heartbeat_interval = heartbeat.get_heartbeat_interval()
-        assert heartbeat_interval is not None
-        while True:
-            heartbeat.record_heartbeat(trial_id)
-            if stop_event.wait(timeout=heartbeat_interval):
-                return
 
 
 def get_heartbeat_thread(trial_id: int, storage: BaseStorage) -> BaseHeartbeatThread:
@@ -181,8 +159,6 @@ def fail_stale_trials(study: "optuna.Study") -> None:
             if storage.set_trial_state_values(trial_id, state=TrialState.FAIL):
                 failed_trial_ids.append(trial_id)
         except optuna.exceptions.UpdateFinishedTrialError:
-            # If another process fails the trial, the storage raises
-            # optuna.exceptions.UpdateFinishedTrialError.
             pass
 
     heartbeat_stale_trial_callback = storage.get_heartbeat_stale_trial_callback()

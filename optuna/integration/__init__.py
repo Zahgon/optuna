@@ -84,12 +84,6 @@ if TYPE_CHECKING:
 else:
 
     class _IntegrationModule(ModuleType):
-        """Module class that implements `optuna.integration` package.
-
-        This class applies lazy import under `optuna.integration`, where submodules are imported
-        when they are actually accessed. Otherwise, `import optuna` becomes much slower because it
-        imports all submodules and their dependencies (e.g., keras, lightgbm) all at once.
-        """
 
         __all__ = __all__
         __file__ = globals()["__file__"]
@@ -113,12 +107,5 @@ else:
             setattr(self, name, value)
             return value
 
-        def _get_module(self, module_name: str) -> ModuleType:
-            import importlib
-
-            try:
-                return importlib.import_module("." + module_name, self.__name__)
-            except ModuleNotFoundError:
-                raise ModuleNotFoundError(_INTEGRATION_IMPORT_ERROR_TEMPLATE.format(module_name))
 
     sys.modules[__name__] = _IntegrationModule(__name__)

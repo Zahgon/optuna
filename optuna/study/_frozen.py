@@ -16,28 +16,6 @@ _logger = logging.get_logger(__name__)
 
 
 class FrozenStudy:
-    """Basic attributes of a :class:`~optuna.study.Study`.
-
-    This class is private and not referenced by Optuna users.
-
-    Attributes:
-        study_name:
-            Name of the :class:`~optuna.study.Study`.
-        direction:
-            :class:`~optuna.study.StudyDirection` of the :class:`~optuna.study.Study`.
-
-            .. note::
-                This attribute is only available during single-objective optimization.
-        directions:
-            A list of :class:`~optuna.study.StudyDirection` objects.
-        user_attrs:
-            Dictionary that contains the attributes of the :class:`~optuna.study.Study` set with
-            :func:`optuna.study.Study.set_user_attr`.
-        system_attrs:
-            Dictionary that contains the attributes of the :class:`~optuna.study.Study` internally
-            set by Optuna.
-
-    """
 
     def __init__(
         self,
@@ -80,15 +58,4 @@ class FrozenStudy:
 
         return self._study_id <= other._study_id
 
-    @property
-    def direction(self) -> StudyDirection:
-        if len(self._directions) > 1:
-            raise RuntimeError(
-                "This attribute is not available during multi-objective optimization."
-            )
 
-        return self._directions[0]
-
-    @property
-    def directions(self) -> list[StudyDirection]:
-        return self._directions

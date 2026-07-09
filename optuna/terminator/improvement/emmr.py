@@ -41,69 +41,6 @@ MARGIN_FOR_NUMARICAL_STABILITY = 0.1
 
 @experimental_class("4.0.0")
 class EMMREvaluator(BaseImprovementEvaluator):
-    """Evaluates a kind of regrets, called the Expected Minimum Model Regret(EMMR).
-
-    EMMR is an upper bound of "expected minimum simple regret" in the optimization process.
-
-    Expected minimum simple regret is a quantity that converges to zero only if the
-    optimization process has found the global optima.
-
-    For further information about expected minimum simple regret and the algorithm,
-    please refer to the following paper:
-
-    - `A stopping criterion for Bayesian optimization by the gap of expected minimum simple
-      regrets <https://proceedings.mlr.press/v206/ishibashi23a.html>`__
-
-    Also, there is our blog post explaining this evaluator:
-
-    - `Introducing A New Terminator: Early Termination of Black-box Optimization Based on
-      Expected Minimum Model Regret
-      <https://medium.com/optuna/introducing-a-new-terminator-early-termination-of-black-box-optimization-based-on-expected-9a660774fcdb>`__
-
-    Args:
-        deterministic_objective:
-            A boolean value which indicates whether the objective function is deterministic.
-            Default is :obj:`False`.
-        delta:
-            A float number related to the criterion for termination. Default to 0.1.
-            For further information about this parameter, please see the aforementioned paper.
-        min_n_trials:
-            A minimum number of complete trials to compute the criterion. Default to 2.
-        seed:
-            A random seed for EMMREvaluator.
-
-    Example:
-
-        .. testcode::
-
-            import optuna
-            from optuna.terminator import EMMREvaluator
-            from optuna.terminator import MedianErrorEvaluator
-            from optuna.terminator import Terminator
-
-            sampler = optuna.samplers.TPESampler(seed=0)
-            study = optuna.create_study(sampler=sampler, direction="minimize")
-            emmr_improvement_evaluator = EMMREvaluator()
-            median_error_evaluator = MedianErrorEvaluator(emmr_improvement_evaluator)
-            terminator = Terminator(
-                improvement_evaluator=emmr_improvement_evaluator,
-                error_evaluator=median_error_evaluator,
-            )
-
-
-            for i in range(1000):
-                trial = study.ask()
-
-                ys = [trial.suggest_float(f"x{i}", -10.0, 10.0) for i in range(5)]
-                value = sum(ys[i] ** 2 for i in range(5))
-
-                study.tell(trial, value)
-
-                if terminator.should_terminate(study):
-                    # Terminated by Optuna Terminator!
-                    break
-
-    """
 
     def __init__(
         self,
@@ -139,7 +76,6 @@ class EMMREvaluator(BaseImprovementEvaluator):
         len_trials = len(complete_trials)
         assert normalized_params.shape == (len_trials, search_space.dim)
 
-        # _gp module assumes that optimization direction is maximization
         sign = -1 if study_direction == StudyDirection.MINIMIZE else 1
         score_vals = np.array([cast("float", t.value) for t in complete_trials]) * sign
         score_vals = gp.warn_and_convert_inf(score_vals)
@@ -176,8 +112,6 @@ class EMMREvaluator(BaseImprovementEvaluator):
         cov_t_between_theta_t_star_and_theta_t1_star = _compute_gp_posterior_cov_two_thetas(
             normalized_params, gpr_t, theta_t_star_index, theta_t1_star_index
         )
-        # Use gpr_t instead of gpr_t1 because KL Div. requires the same prior for both posterior.
-        # cf. Sec. 4.4 of https://proceedings.mlr.press/v206/ishibashi23a/ishibashi23a.pdf
         mu_t1_theta_t_with_nu_t, variance_t1_theta_t_with_nu_t = _compute_gp_posterior(
             normalized_params[-1, :], gpr_t
         )
@@ -238,7 +172,6 @@ class EMMREvaluator(BaseImprovementEvaluator):
 
 
 def _compute_gp_posterior(x_params: np.ndarray, gpr: gp.GPRegressor) -> tuple[float, float]:
-    # best_params or normalized_params[..., -1, :]
     mean, var = gpr.posterior(torch.from_numpy(x_params))
     return mean.item(), var.item()
 

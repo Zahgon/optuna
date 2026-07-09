@@ -29,26 +29,10 @@ class _FanovaTree:
         self._subtree_active_features = subtree_active_features
         self._variance = None  # Computed lazily and requires `self._statistics`.
 
-    @property
-    def variance(self) -> float:
-        if self._variance is None:
-            leaf_node_indices = np.nonzero(np.array(self._tree.feature) < 0)[0]
-            statistics = self._statistics[leaf_node_indices]
-            values = statistics[:, 0]
-            weights = statistics[:, 1]
-            average_values = np.average(values, weights=weights)
-            variance = np.average((values - average_values) ** 2, weights=weights)
-
-            self._variance = variance
-
-        assert self._variance is not None
-        return self._variance
 
     def get_marginal_variance(self, features: np.ndarray) -> float:
         assert features.size > 0
 
-        # For each midpoint along the given dimensions, traverse this tree to compute the
-        # marginal predictions.
         selected_midpoints = [self._split_midpoints[f] for f in features]
         selected_sizes = [self._split_sizes[f] for f in features]
 
@@ -83,11 +67,9 @@ class _FanovaTree:
         marginalized_features = np.isnan(feature_vector)
         active_features = ~marginalized_features
 
-        # Reduce search space cardinalities to 1 for non-active features.
         search_spaces = self._search_spaces.copy()
         search_spaces[marginalized_features] = [0.0, 1.0]
 
-        # Start from the root and traverse towards the leafs.
         active_nodes = [0]
         active_search_spaces = [search_spaces]
 
@@ -100,7 +82,6 @@ class _FanovaTree:
 
             feature = self._get_node_split_feature(node_index)
             if feature >= 0:  # Not leaf. Avoid unnecessary call to `_is_node_leaf`.
-                # If node splits on an active feature, push the child node that we end up in.
                 response = feature_vector[feature]
                 if not np.isnan(response):
                     if response <= self._get_node_split_threshold(node_index):
@@ -118,15 +99,12 @@ class _FanovaTree:
                     active_search_spaces.append(next_subspace)
                     continue
 
-                # If subtree starting from node splits on an active feature, push both child nodes.
-                # Here, we use `any` for list because `ndarray.any` is slow.
                 if any(self._subtree_active_features[node_index][active_features].tolist()):
                     for child_node_index in self._get_node_children(node_index):
                         active_nodes.append(child_node_index)
                         active_search_spaces.append(search_spaces)
                     continue
 
-            # If node is a leaf or the subtree does not split on any of the active features.
             node_indices.append(node_index)
             active_leaf_search_spaces.append(search_spaces)
 
@@ -144,13 +122,11 @@ class _FanovaTree:
     def _precompute_statistics(self) -> np.ndarray:
         n_nodes = self._n_nodes
 
-        # Holds for each node, its weighted average value and the sum of weights.
         statistics = np.empty((n_nodes, 2), dtype=np.float64)
 
         subspaces = np.array([None for _ in range(n_nodes)])
         subspaces[0] = self._search_spaces
 
-        # Compute marginals for leaf nodes.
         for node_index in range(n_nodes):
             subspace = subspaces[node_index]
 
@@ -166,7 +142,6 @@ class _FanovaTree:
                     assert subspaces[child_node_index] is None
                     subspaces[child_node_index] = child_subspace
 
-        # Compute marginals for internal nodes.
         for node_index in reversed(range(n_nodes)):
             if not self._is_node_leaf(node_index):
                 child_values = []
@@ -235,13 +210,7 @@ class _FanovaTree:
 
         return subtree_active_features
 
-    @property
-    def _n_features(self) -> int:
-        return len(self._search_spaces)
 
-    @property
-    def _n_nodes(self) -> int:
-        return self._tree.node_count
 
     @lru_cache(maxsize=None)
     def _is_node_leaf(self, node_index: int) -> bool:
@@ -261,8 +230,6 @@ class _FanovaTree:
 
     @lru_cache(maxsize=None)
     def _get_node_value(self, node_index: int) -> float:
-        # self._tree.value: sklearn.tree._tree.Tree.value has
-        # the shape (node_count, n_outputs, max_n_classes)
         return float(self._tree.value[node_index].reshape(-1)[0])
 
     @lru_cache(maxsize=None)

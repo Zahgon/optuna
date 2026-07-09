@@ -21,7 +21,6 @@ optuna_warn(f"{msg} Use `optuna_integration.lightgbm` instead.", FutureWarning)
 
 
 if TYPE_CHECKING:
-    # These modules are from optuna-integration.
     from optuna.integration.lightgbm_tuner import LightGBMPruningCallback
     from optuna.integration.lightgbm_tuner import LightGBMTuner
     from optuna.integration.lightgbm_tuner import LightGBMTunerCV
@@ -37,7 +36,6 @@ __all__ = [
 
 
 class _LightGBMModule(ModuleType):
-    """Module class that implements `optuna.integration.lightgbm` package."""
 
     __all__ = __all__
     __file__ = globals()["__file__"]

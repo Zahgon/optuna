@@ -14,47 +14,6 @@ if TYPE_CHECKING:
 
 @experimental_class("3.0.0")
 class VSBXCrossover(BaseCrossover):
-    """Modified Simulated Binary Crossover operation used by
-    :class:`~optuna.samplers.NSGAIISampler`.
-
-    vSBX generates child individuals without excluding any region of the parameter space,
-    while maintaining the excellent properties of SBX.
-
-    In the paper, vSBX has only one argument, ``eta``,
-    and generate two child individuals.
-    However, Optuna can only return one child individual in one crossover operation,
-    so it uses the ``uniform_crossover_prob`` and ``use_child_gene_prob`` arguments
-    to make two individuals into one.
-
-    - `Pedro J. Ballester, Jonathan N. Carter.
-      Real-Parameter Genetic Algorithms for Finding Multiple Optimal Solutions
-      in Multi-modal Optimization. GECCO 2003: 706-717
-      <https://doi.org/10.1007/3-540-45105-6_86>`__
-
-    Args:
-        eta:
-            Distribution index. A small value of ``eta`` allows distant solutions
-            to be selected as children solutions. If not specified, takes default
-            value of ``2`` for single objective functions and ``20`` for multi objective.
-        uniform_crossover_prob:
-            ``uniform_crossover_prob`` is the probability of uniform crossover
-            between two individuals selected as candidate child individuals.
-            This argument is whether or not two individuals are
-            crossover to make one child individual.
-            If the ``uniform_crossover_prob`` exceeds 0.5,
-            the result is equivalent to ``1-uniform_crossover_prob``,
-            because it returns one of the two individuals of the crossover result.
-            If not specified, takes default value of ``0.5``.
-            The range of values is ``[0.0, 1.0]``.
-        use_child_gene_prob:
-            ``use_child_gene_prob`` is the probability of using the value of the generated
-            child variable rather than the value of the parent.
-            This probability is applied to each variable individually.
-            where ``1-use_chile_gene_prob`` is the probability of
-            using the parent's values as it is.
-            If not specified, takes default value of ``0.5``.
-            The range of values is ``(0.0, 1.0]``.
-    """
 
     n_parents = 2
 
@@ -84,8 +43,6 @@ class VSBXCrossover(BaseCrossover):
         study: Study,
         search_space_bounds: np.ndarray,
     ) -> np.ndarray:
-        # https://doi.org/10.1007/3-540-45105-6_86
-        # Section 3.2 Crossover Schemes (vSBX)
         if self._eta is None:
             eta = 20.0 if study._is_multi_objective() else 2.0
         else:
@@ -107,12 +64,6 @@ class VSBXCrossover(BaseCrossover):
         else:
             c2 = 0.5 * (-(1 - beta_1) * parents_params[0] + (3 - beta_2) * parents_params[1])
 
-        # vSBX applies crossover with use_child_gene_prob and uniform_crossover_prob.
-        # the gene of the parent individual is the gene of the child individual.
-        # The original vSBX creates two child individuals,
-        # but optuna's implementation creates only one child individual.
-        # Therefore, when there is no crossover,
-        # the gene is selected with equal probability from the parent individuals x1 and x2.
 
         child1_params_list = []
         child2_params_list = []

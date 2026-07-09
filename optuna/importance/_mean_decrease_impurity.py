@@ -27,26 +27,6 @@ with try_import() as _imports:
 
 
 class MeanDecreaseImpurityImportanceEvaluator(BaseImportanceEvaluator):
-    """Mean Decrease Impurity (MDI) parameter importance evaluator.
-
-    This evaluator fits fits a random forest regression model that predicts the objective values
-    of :class:`~optuna.trial.TrialState.COMPLETE` trials given their parameter configurations.
-    Feature importances are then computed using MDI.
-
-    .. note::
-
-        This evaluator requires the `sklearn <https://scikit-learn.org/stable/>`__ Python package
-        and is based on `sklearn.ensemble.RandomForestClassifier.feature_importances_
-        <https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html#sklearn.ensemble.RandomForestClassifier.feature_importances_>`__.
-
-    Args:
-        n_trees:
-            Number of trees in the random forest.
-        max_depth:
-            The maximum depth of each tree in the random forest.
-        seed:
-            Seed for the random forest.
-    """
 
     def __init__(self, *, n_trees: int = 64, max_depth: int = 64, seed: int | None = None) -> None:
         _imports.check()
@@ -94,8 +74,6 @@ class MeanDecreaseImpurityImportanceEvaluator(BaseImportanceEvaluator):
         forest.fit(X=trans_params, y=target_values)
         feature_importances = forest.feature_importances_
 
-        # Untransform feature importances to param importances
-        # by adding up relevant feature importances.
         param_importances = np.zeros(len(params))
         np.add.at(param_importances, trans.encoded_column_to_column, feature_importances)
 

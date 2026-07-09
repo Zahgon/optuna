@@ -27,7 +27,6 @@ _DEPRECATION_WARNING_MESSAGE = _DEPRECATION_WARNING_TEMPLATE.format(
 
 
 class BaseErrorEvaluator(metaclass=abc.ABCMeta):
-    """Base class for error evaluators."""
 
     @abc.abstractmethod
     def evaluate(
@@ -40,14 +39,6 @@ class BaseErrorEvaluator(metaclass=abc.ABCMeta):
 
 @experimental_class("3.2.0")
 class CrossValidationErrorEvaluator(BaseErrorEvaluator):
-    """An error evaluator for objective functions based on cross-validation.
-
-    This evaluator evaluates the objective function's statistical error, which comes from the
-    randomness of dataset. This evaluator assumes that the objective function is the average of
-    the cross-validation and uses the scaled variance of the cross-validation scores in the best
-    trial at the moment as the statistical error.
-
-    """
 
     def evaluate(
         self,
@@ -119,16 +110,6 @@ def report_cross_validation_scores(trial: Trial, scores: list[float]) -> None:
 
 @experimental_class("3.2.0")
 class StaticErrorEvaluator(BaseErrorEvaluator):
-    """An error evaluator that always returns a constant value.
-
-    This evaluator can be used to terminate the optimization when the evaluated improvement
-    potential is below the fixed threshold.
-
-    Args:
-        constant:
-            A user-specified constant value to always return as an error estimate.
-
-    """
 
     def __init__(self, constant: float) -> None:
         self._constant = constant

@@ -1,21 +1,3 @@
-"""Notations in this Gaussian process implementation
-
-X_train: Observed parameter values with the shape of (len(trials), len(params)).
-y_train: Observed objective values with the shape of (len(trials), 1).
-x: (Possibly batched) parameter value(s) to evaluate with the shape of (..., len(params)).
-cov_fX_fX: Kernel matrix X = V[f(X)] with the shape of (len(trials), len(trials)).
-cov_fx_fX: Kernel matrix Cov[f(x), f(X)] with the shape of (..., len(trials)).
-cov_fx_fx: Kernel scalar value x = V[f(x)]. This value is constant for the Matern 5/2 kernel.
-cov_Y_Y_inv:
-    The inverse of the covariance matrix (V[f(X) + noise_var])^-1 with the shape of
-    (len(trials), len(trials)).
-cov_Y_Y_inv_Y: `cov_Y_Y_inv @ y` with the shape of (len(trials), ).
-max_Y: The maximum of Y (Note that we transform the objective values such that it is maximized.)
-sqd: The squared differences of each dimension between two points.
-is_categorical:
-    A boolean array with the shape of (len(params), ). If is_categorical[i] is True, the i-th
-    parameter is categorical.
-"""
 
 from __future__ import annotations
 
@@ -50,8 +32,6 @@ def warn_and_convert_inf(values: np.ndarray) -> np.ndarray:
 
     optuna_warn("Clip non-finite values to the min/max finite values for GP fittings.")
     is_any_finite = np.any(is_values_finite, axis=0)
-    # NOTE(nabenabe): values cannot include nan to apply np.clip properly, but Optuna anyways won't
-    # pass nan in values by design.
     return np.clip(
         values,
         np.where(is_any_finite, np.min(np.where(is_values_finite, values, np.inf), axis=0), 0.0),
@@ -71,12 +51,10 @@ def _solve_cholesky(L: torch.Tensor, B: torch.Tensor, *, left: bool = True) -> t
     cf. https://github.com/optuna/optuna/issues/6230
     """
     if left:
-        # L @ L.T @ X = B --> L.T @ X = inv(L) @ B --> X = inv(L.T) @ inv(L) @ B
         return torch.linalg.solve_triangular(
             L.T, torch.linalg.solve_triangular(L, B, upper=False), upper=True
         )
     else:
-        # X @ L @ L.T = B --> X @ L = B @ inv(L.T) --> X = B @ inv(L.T) @ inv(L)
         return torch.linalg.solve_triangular(
             L,
             torch.linalg.solve_triangular(L.T, B, upper=True, left=False),
@@ -116,22 +94,7 @@ def _extend_cholesky(L11: torch.Tensor, K21: torch.Tensor, K22: torch.Tensor) ->
 class Matern52Kernel(torch.autograd.Function):
     @staticmethod
     def forward(ctx: Any, squared_distance: torch.Tensor) -> torch.Tensor:
-        """
-        This method calculates `exp(-sqrt5d) * (1/3 * sqrt5d ** 2 + sqrt5d + 1)` where
-        `sqrt5d = sqrt(5 * squared_distance)`.
-
-        Please note that automatic differentiation by PyTorch does not work well at
-        `squared_distance = 0` due to zero division, so we manually save the derivative, i.e.,
-        `-5/6 * (1 + sqrt5d) * exp(-sqrt5d)`, for the exact derivative calculation.
-
-        Notice that the derivative of this function is taken w.r.t. d**2, but not w.r.t. d.
-        """
-        sqrt5d = torch.sqrt(5 * squared_distance)
-        exp_part = torch.exp(-sqrt5d)
-        val = exp_part * ((5 / 3) * squared_distance + sqrt5d + 1)
-        deriv = (-5 / 6) * (sqrt5d + 1) * exp_part
-        ctx.save_for_backward(deriv)
-        return val
+        pass
 
     @staticmethod
     def backward(ctx: Any, grad: torch.Tensor) -> torch.Tensor:
@@ -166,14 +129,10 @@ class GPRegressor:
             ).type(torch.float64)
         self._cov_Y_Y_chol: torch.Tensor | None = None
         self._cov_Y_Y_inv_Y: torch.Tensor | None = None
-        # TODO(nabenabe): Rename the attributes to private with `_`.
         self.inverse_squared_lengthscales = inverse_squared_lengthscales
         self.kernel_scale = kernel_scale
         self.noise_var = noise_var
 
-    @property
-    def length_scales(self) -> np.ndarray:
-        return 1.0 / np.sqrt(self.inverse_squared_lengthscales.detach().cpu().numpy())
 
     def _cache_matrix(self) -> None:
         assert self._cov_Y_Y_chol is None and self._cov_Y_Y_inv_Y is None, (
@@ -251,12 +210,10 @@ class GPRegressor:
         is_single_point = x.ndim == 1
         x_ = x if not is_single_point else x.unsqueeze(0)
         mean = torch.linalg.vecdot(cov_fx_fX := self.kernel(x_, self._X_all), self._cov_Y_Y_inv_Y)
-        # K @ inv(C) = V --> K = V @ C --> K = V @ L @ L.T
         V = _solve_cholesky(self._cov_Y_Y_chol, cov_fx_fX, left=False)
         if joint:
             assert not is_single_point, "Call posterior with joint=False for a single point."
             cov_fx_fx = self.kernel(x_, x_)
-            # NOTE(nabenabe): Indeed, var_ here is a covariance matrix.
             var_ = cov_fx_fx - V.matmul(cov_fx_fX.transpose(-1, -2))
             var_.diagonal(dim1=-2, dim2=-1).clamp_min_(0.0)
         else:
@@ -292,13 +249,11 @@ class GPRegressor:
         latter is N**3+2*N**2-N flops.
         """
         cov_Y_Y = self.kernel()
-        # NOTE(nabenabe): If we extend it to batch optimization, use diagonal(dim1=-2, dim2=-1).
         cov_Y_Y.diagonal().add_(self.noise_var)
         L = torch.linalg.cholesky(cov_Y_Y)
         logdet_part = -L.diagonal().log().sum()
         inv_L_y = torch.linalg.solve_triangular(L, self._y_train, upper=False).squeeze(-1)
         quad_part = -0.5 * (inv_L_y @ inv_L_y)
-        # NOTE(nabe): Omitting the constant does not change the optimum.
         return logdet_part + quad_part
 
     def _fit_kernel_params(
@@ -310,43 +265,19 @@ class GPRegressor:
     ) -> GPRegressor:
         n_params = self._X_train.shape[1]
 
-        # We apply log transform to enforce the positivity of the kernel parameters.
-        # Note that we cannot just use the constraint because of the numerical instability
-        # of the marginal log likelihood.
-        # We also enforce the noise parameter to be greater than `minimum_noise` to avoid
-        # pathological behavior of maximum likelihood estimation.
         initial_raw_params = np.concatenate(
             [
                 np.log(self.inverse_squared_lengthscales.detach().cpu().numpy()),
                 [
                     np.log(self.kernel_scale.item()),
-                    # We add 0.01 * minimum_noise to initial noise_var to avoid instability.
                     np.log(self.noise_var.item() - 0.99 * minimum_noise),
                 ],
             ]
         )
 
-        def loss_func(raw_params: np.ndarray) -> tuple[float, np.ndarray]:
-            raw_params_tensor = torch.from_numpy(raw_params).requires_grad_(True)
-            with torch.enable_grad():
-                self.inverse_squared_lengthscales = torch.exp(raw_params_tensor[:n_params])
-                self.kernel_scale = torch.exp(raw_params_tensor[n_params])
-                self.noise_var = (
-                    torch.tensor(minimum_noise, dtype=torch.float64)
-                    if deterministic_objective
-                    else torch.exp(raw_params_tensor[n_params + 1]) + minimum_noise
-                )
-                loss = -self.marginal_log_likelihood() - log_prior(self)
-                loss.backward()  # type: ignore
-                # scipy.minimize requires all the gradients to be zero for termination.
-                raw_noise_var_grad = raw_params_tensor.grad[n_params + 1]  # type: ignore
-                assert not deterministic_objective or raw_noise_var_grad == 0
-            return loss.item(), raw_params_tensor.grad.detach().cpu().numpy()  # type: ignore
 
         with single_blas_thread_if_scipy_v1_15_or_newer():
-            # jac=True means loss_func returns the gradient for gradient descent.
             res = scipy.optimize.minimize(
-                # Too small `gtol` causes instability in loss_func optimization.
                 loss_func,
                 initial_raw_params,
                 jac=True,
@@ -379,7 +310,6 @@ def fit_kernel_params(
     gtol: float = 1e-2,
 ) -> GPRegressor:
     default_kernel_params = torch.ones(X.shape[1] + 2, dtype=torch.float64)
-    # TODO: Move this function into a method of `GPRegressor`
 
     def _default_gpr() -> GPRegressor:
         return GPRegressor(
@@ -396,9 +326,6 @@ def fit_kernel_params(
         gpr_cache = _default_gpr()
 
     error = None
-    # First try optimizing the kernel params with the provided kernel parameters in gpr_cache,
-    # but if it fails, rerun the optimization with the default kernel parameters above.
-    # This increases the robustness of the optimization.
     for gpr_cache_to_use in [gpr_cache, default_gpr_cache]:
         try:
             return GPRegressor(

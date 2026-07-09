@@ -16,12 +16,6 @@ _INTEGRATION_IMPORT_ERROR_TEMPLATE = (
 
 
 class _DeferredImportExceptionContextManager:
-    """Context manager to defer exceptions from imports.
-
-    Catches :exc:`ImportError` and :exc:`SyntaxError`.
-    If any exception is caught, this class raises an :exc:`ImportError` when being checked.
-
-    """
 
     def __init__(self) -> None:
         self._deferred: tuple[Exception, str] | None = None
@@ -109,28 +103,11 @@ def try_import() -> _DeferredImportExceptionContextManager:
 
 
 class _LazyImport(types.ModuleType):
-    """Module wrapper for lazy import.
-
-    This class wraps the specified modules and lazily imports them only when accessed.
-    Otherwise, `import optuna` is slowed down by importing all submodules and
-    dependencies even if not required.
-    Within this project's usage, importlib override this module's attribute on the first
-    access and the imported submodule is directly accessed from the second access.
-
-    TODO: Eliminate lazy import after Python 3.14 is dropped. https://peps.python.org/pep-0810/
-
-    Args:
-        name: Name of module to apply lazy import.
-    """
 
     def __init__(self, name: str) -> None:
         super().__init__(name)
         self._name = name
 
-    def _load(self) -> types.ModuleType:
-        module = importlib.import_module(self._name)
-        self.__dict__.update(module.__dict__)
-        return module
 
     def __getattr__(self, item: str) -> Any:
         return getattr(self._load(), item)

@@ -14,46 +14,6 @@ if TYPE_CHECKING:
 
 @experimental_class("3.0.0")
 class SBXCrossover(BaseCrossover):
-    """Simulated Binary Crossover operation used by :class:`~optuna.samplers.NSGAIISampler`.
-
-    Generates a child from two parent individuals
-    according to the polynomial probability distribution.
-
-    In the paper, SBX has only one argument, ``eta``,
-    and generate two child individuals.
-    However, Optuna can only return one child individual in one crossover operation,
-    so it uses the ``uniform_crossover_prob`` and ``use_child_gene_prob`` arguments
-    to make two individuals into one.
-
-    - `Deb, K. and R. Agrawal.
-      “Simulated Binary Crossover for Continuous Search Space.”
-      Complex Syst. 9 (1995): n. pag.
-      <https://www.complex-systems.com/abstracts/v09_i02_a02/>`__
-
-    Args:
-        eta:
-            Distribution index. A small value of ``eta`` allows distant solutions
-            to be selected as children solutions. If not specified, takes default
-            value of ``2`` for single objective functions and ``20`` for multi objective.
-        uniform_crossover_prob:
-            ``uniform_crossover_prob`` is the probability of uniform crossover
-            between two individuals selected as candidate child individuals.
-            This argument is whether or not two individuals are
-            crossover to make one child individual.
-            If the ``uniform_crossover_prob`` exceeds 0.5,
-            the result is equivalent to ``1-uniform_crossover_prob``,
-            because it returns one of the two individuals of the crossover result.
-            If not specified, takes default value of ``0.5``.
-            The range of values is ``[0.0, 1.0]``.
-        use_child_gene_prob:
-            ``use_child_gene_prob`` is the probability of using the value of the generated
-            child variable rather than the value of the parent.
-            This probability is applied to each variable individually.
-            where ``1-use_chile_gene_prob`` is the probability of
-            using the parent's values as it is.
-            If not specified, takes default value of ``0.5``.
-            The range of values is ``(0.0, 1.0]``.
-    """
 
     n_parents = 2
 
@@ -83,11 +43,7 @@ class SBXCrossover(BaseCrossover):
         study: Study,
         search_space_bounds: np.ndarray,
     ) -> np.ndarray:
-        # https://www.researchgate.net/profile/M-M-Raghuwanshi/publication/267198495_Simulated_Binary_Crossover_with_Lognormal_Distribution/links/5576c78408ae7536375205d7/Simulated-Binary-Crossover-with-Lognormal-Distribution.pdf
-        # Section 2 Simulated Binary Crossover (SBX)
 
-        # To avoid generating solutions that violate the box constraints,
-        # alpha1, alpha2, xls and xus are introduced, unlike the reference.
         xls = search_space_bounds[..., 0]
         xus = search_space_bounds[..., 1]
 
@@ -116,12 +72,6 @@ class SBXCrossover(BaseCrossover):
         c1 = 0.5 * ((xs_min + xs_max) - betaq1 * xs_diff)  # Equation (4).
         c2 = 0.5 * ((xs_min + xs_max) + betaq2 * xs_diff)  # Equation (5).
 
-        # SBX applies crossover with use_child_gene_prob and uniform_crossover_prob.
-        # the gene of the parent individual is the gene of the child individual.
-        # The original SBX creates two child individuals,
-        # but optuna's implementation creates only one child individual.
-        # Therefore, when there is no crossover,
-        # the gene is selected with equal probability from the parent individuals x1 and x2.
 
         child1_params_list = []
         child2_params_list = []

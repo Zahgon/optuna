@@ -65,16 +65,6 @@ class _ThreadLocalStudyAttribute(threading.local):
 
 
 class Study:
-    """A study corresponds to an optimization task, i.e., a set of trials.
-
-    This object provides interfaces to run a new :class:`~optuna.trial.Trial`, access trials'
-    history, set/get user-defined attributes of the study itself.
-
-    Note that the direct use of this constructor is not recommended.
-    To create and load a study, please refer to the documentation of
-    :func:`~optuna.study.create_study` and :func:`~optuna.study.load_study` respectively.
-
-    """
 
     def __init__(
         self,
@@ -107,148 +97,31 @@ class Study:
 
     @property
     def best_params(self) -> dict[str, Any]:
-        """Return parameters of the best trial in the study.
-
-        .. note::
-            This feature can only be used for single-objective optimization.
-
-        Returns:
-            A dictionary containing parameters of the best trial.
-
-        """
-
-        return self.best_trial.params
+        pass
 
     @property
     def best_value(self) -> float:
-        """Return the best objective value in the study.
-
-        .. note::
-            This feature can only be used for single-objective optimization.
-
-        Returns:
-            A float representing the best objective value.
-
-        """
-
-        best_value = self.best_trial.value
-        assert best_value is not None
-
-        return best_value
+        pass
 
     @property
     def best_trial(self) -> FrozenTrial:
-        """Return the best trial in the study.
-
-        .. note::
-            This feature can only be used for single-objective optimization.
-            If your study is multi-objective,
-            use :attr:`~optuna.study.Study.best_trials` instead.
-
-        .. note::
-            In constrained optimization, the best trial is selected from trials that
-            satisfy all constraints. A trial is considered feasible when all of its
-            constraint values are less than or equal to 0.0.
-
-        Returns:
-            A :class:`~optuna.trial.FrozenTrial` object of the best trial.
-
-        Raises:
-            RuntimeError:
-                If the study is multi-objective.
-            ValueError:
-                If no trials are completed yet, or if no feasible trials exist
-                in a constrained optimization.
-
-        .. seealso::
-            The :ref:`reuse_best_trial` tutorial provides a detailed example of how to use this
-            method.
-
-        """
-        return self._get_best_trial(deepcopy=True)
+        pass
 
     @property
     def best_trials(self) -> list[FrozenTrial]:
-        """Return trials located at the Pareto front in the study.
-
-        A trial is located at the Pareto front if there are no trials that dominate the trial.
-        It's called that a trial ``t0`` dominates another trial ``t1`` if
-        ``all(v0 <= v1) for v0, v1 in zip(t0.values, t1.values)`` and
-        ``any(v0 < v1) for v0, v1 in zip(t0.values, t1.values)`` are held.
-
-        .. note::
-            In constrained optimization, the best trials are selected from trials that
-            satisfy all constraints. A trial is considered feasible when all of its
-            constraint values are less than or equal to 0.0.
-
-        .. note::
-            When optimizing many objectives, a large fraction of trials may become non-dominated
-            in general due to the curse of dimensionality in the objective space. If this makes
-            post-hoc selection difficult, consider modeling some objectives as constraints.
-            Constraints can be passed via the `constraints_func` argument at the sampler
-            initialization.
-
-        Returns:
-            A list of :class:`~optuna.trial.FrozenTrial` objects. If no trials are
-            completed or if no feasible trials exist in a constrained optimization,
-            an empty list is returned.
-        """
-
-        # Check whether the study is constrained optimization.
-        trials = self.get_trials(deepcopy=False)
-        is_constrained = any((_CONSTRAINTS_KEY in trial.system_attrs) for trial in trials)
-
-        return _get_pareto_front_trials(self, consider_constraint=is_constrained)
+        pass
 
     @property
     def direction(self) -> StudyDirection:
-        """Return the direction of the study.
-
-        .. note::
-            This feature can only be used for single-objective optimization.
-            If your study is multi-objective,
-            use :attr:`~optuna.study.Study.directions` instead.
-
-        Returns:
-            A :class:`~optuna.study.StudyDirection` object.
-
-        """
-
-        if self._is_multi_objective():
-            raise RuntimeError(
-                "A single direction cannot be retrieved from a multi-objective study. Consider "
-                "using Study.directions to retrieve a list containing all directions."
-            )
-
-        return self.directions[0]
+        pass
 
     @property
     def directions(self) -> list[StudyDirection]:
-        """Return the directions of the study.
-
-        Returns:
-            A list of :class:`~optuna.study.StudyDirection` objects.
-        """
-
-        return self._directions
+        pass
 
     @property
     def trials(self) -> list[FrozenTrial]:
-        """Return all trials in the study.
-
-        The returned trials are ordered by trial number.
-
-        This is a short form of ``self.get_trials(deepcopy=True, states=None)``.
-
-        Returns:
-            A list of :class:`~optuna.trial.FrozenTrial` objects.
-
-            .. seealso::
-                See :func:`~optuna.study.Study.get_trials` for related method.
-
-        """
-
-        return self.get_trials(deepcopy=True, states=None)
+        pass
 
     def get_trials(
         self,
@@ -333,9 +206,6 @@ class Study:
 
         best_trial = self._storage.get_best_trial(self._study_id)
 
-        # If the trial with the best value is infeasible, select the best trial from all feasible
-        # trials. Note that the behavior is undefined when constrained optimization without the
-        # violation value in the best-valued trial.
         constraints = best_trial.system_attrs.get(_CONSTRAINTS_KEY)
         if constraints is not None and any([x > 0.0 for x in constraints]):
             complete_trials = self.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
@@ -351,65 +221,16 @@ class Study:
 
     @property
     def user_attrs(self) -> dict[str, Any]:
-        """Return user attributes.
-
-        .. seealso::
-
-            See :func:`~optuna.study.Study.set_user_attr` for related method.
-
-        Example:
-
-            .. testcode::
-
-                import optuna
-
-
-                def objective(trial):
-                    x = trial.suggest_float("x", 0, 1)
-                    y = trial.suggest_float("y", 0, 1)
-                    return x**2 + y**2
-
-
-                study = optuna.create_study()
-
-                study.set_user_attr("objective function", "quadratic function")
-                study.set_user_attr("dimensions", 2)
-                study.set_user_attr("contributors", ["Akiba", "Sano"])
-
-                assert study.user_attrs == {
-                    "objective function": "quadratic function",
-                    "dimensions": 2,
-                    "contributors": ["Akiba", "Sano"],
-                }
-
-        Returns:
-            A dictionary containing all user attributes.
-        """
-
-        return copy.deepcopy(self._storage.get_study_user_attrs(self._study_id))
+        pass
 
     @property
     @deprecated_func("3.1.0", "5.0.0")
     def system_attrs(self) -> dict[str, Any]:
-        """Return system attributes.
-
-        Returns:
-            A dictionary containing all system attributes.
-        """
-
-        return copy.deepcopy(self._storage.get_study_system_attrs(self._study_id))
+        pass
 
     @property
     def metric_names(self) -> list[str] | None:
-        """Return metric names.
-
-        .. note::
-            Use :meth:`~optuna.study.Study.set_metric_names` to set the metric names first.
-
-        Returns:
-            A list with names for each dimension of the returned values of the objective function.
-        """
-        return self._storage.get_study_system_attrs(self._study_id).get(_SYSTEM_ATTR_METRIC_NAMES)
+        pass
 
     def optimize(
         self,
@@ -598,7 +419,6 @@ class Study:
             for key, dist in fixed_distributions.items()
         }
 
-        # Sync storage once every trial.
         self._thread_local.cached_all_trials = None
 
         trial_id = self._pop_waiting_trial_id()
@@ -778,58 +598,7 @@ class Study:
         ),
         multi_index: bool = False,
     ) -> "pd.DataFrame":
-        """Export trials as a pandas DataFrame_.
-
-        The DataFrame_ provides various features to analyze studies. It is also useful to draw a
-        histogram of objective values and to export trials as a CSV file.
-        If there are no trials, an empty DataFrame_ is returned.
-
-        Example:
-
-            .. testcode::
-
-                import optuna
-                import pandas
-
-
-                def objective(trial):
-                    x = trial.suggest_float("x", -1, 1)
-                    return x**2
-
-
-                study = optuna.create_study()
-                study.optimize(objective, n_trials=3)
-
-                # Create a dataframe from the study.
-                df = study.trials_dataframe()
-                assert isinstance(df, pandas.DataFrame)
-                assert df.shape[0] == 3  # n_trials.
-
-        Args:
-            attrs:
-                Specifies field names of :class:`~optuna.trial.FrozenTrial` to include them to a
-                DataFrame of trials.
-            multi_index:
-                Specifies whether the returned DataFrame_ employs MultiIndex_ or not. Columns that
-                are hierarchical by nature such as ``(params, x)`` will be flattened to
-                ``params_x`` when set to :obj:`False`.
-
-        Returns:
-            A pandas DataFrame_ of trials in the :class:`~optuna.study.Study`.
-
-        .. _DataFrame: http://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.html
-        .. _MultiIndex: https://pandas.pydata.org/pandas-docs/stable/advanced.html
-
-        Note:
-            If ``value`` is in ``attrs`` during multi-objective optimization, it is implicitly
-            replaced with ``values``.
-
-        Note:
-            If :meth:`~optuna.study.Study.set_metric_names` is called, the ``value`` or ``values``
-            is implicitly replaced with the dictionary with the objective name as key and the
-            objective value as value.
-        """
-        return _dataframe._trials_dataframe(self, attrs, multi_index)
+        pass
 
     def stop(self) -> None:
         """Exit from the current optimization loop after the running trials finish.
@@ -1006,87 +775,11 @@ class Study:
         self._storage.create_new_trial(self._study_id, template_trial=trial)
 
     def add_trials(self, trials: Iterable[FrozenTrial]) -> None:
-        """Add trials to study.
-
-        The trials are validated before being added.
-
-        Example:
-
-            .. testcode::
-
-                import optuna
-
-
-                def objective(trial):
-                    x = trial.suggest_float("x", 0, 10)
-                    return x**2
-
-
-                study = optuna.create_study()
-                study.optimize(objective, n_trials=3)
-                assert len(study.trials) == 3
-
-                other_study = optuna.create_study()
-                other_study.add_trials(study.trials)
-                assert len(other_study.trials) == len(study.trials)
-
-                other_study.optimize(objective, n_trials=2)
-                assert len(other_study.trials) == len(study.trials) + 2
-
-        .. seealso::
-
-            See :func:`~optuna.study.Study.add_trial` for addition of each trial.
-
-        Args:
-            trials: Trials to add.
-
-        """
-
-        for trial in trials:
-            self.add_trial(trial)
+        pass
 
     @experimental_func("3.2.0")
     def set_metric_names(self, metric_names: list[str]) -> None:
-        """Set metric names.
-
-        This method names each dimension of the returned values of the objective function.
-        It is particularly useful in multi-objective optimization. The metric names are
-        mainly referenced by the visualization functions.
-
-        Example:
-
-            .. testcode::
-
-                import optuna
-                import pandas
-
-
-                def objective(trial):
-                    x = trial.suggest_float("x", 0, 10)
-                    return x**2, x + 1
-
-
-                study = optuna.create_study(directions=["minimize", "minimize"])
-                study.set_metric_names(["x**2", "x+1"])
-                study.optimize(objective, n_trials=3)
-
-                df = study.trials_dataframe(multi_index=True)
-                assert isinstance(df, pandas.DataFrame)
-                assert list(df.get("values").keys()) == ["x**2", "x+1"]
-
-        .. seealso::
-            The names set by this method are used in :meth:`~optuna.study.Study.trials_dataframe`
-            and :func:`~optuna.visualization.plot_pareto_front`.
-
-        Args:
-            metric_names: A list of metric names for the objective function.
-        """
-        if len(self.directions) != len(metric_names):
-            raise ValueError("The number of objectives must match the length of the metric names.")
-
-        self._storage.set_study_system_attr(
-            self._study_id, _SYSTEM_ATTR_METRIC_NAMES, metric_names
-        )
+        pass
 
     def _is_multi_objective(self) -> bool:
         """Return :obj:`True` if the study has multiple objectives.
@@ -1101,11 +794,6 @@ class Study:
         for trial in self._storage.get_all_trials(
             self._study_id, deepcopy=False, states=(TrialState.WAITING,)
         ):
-            # Attempt to set the state to RUNNING.
-            # - If another process or thread has already changed the state to RUNNING,
-            #   set_trial_state_values returns False.
-            # - If another process or thread has already finished the trial,
-            #   an UpdateFinishedTrialError is raised.
             try:
                 if not self._storage.set_trial_state_values(
                     trial._trial_id,
@@ -1124,17 +812,12 @@ class Study:
         for trial in self.get_trials(deepcopy=False):
             trial_params = trial.system_attrs.get("fixed_params", trial.params)
             if trial_params.keys() != params.keys():
-                # Can't have repeated trials if different params are suggested.
                 continue
 
             repeated_params: list[bool] = []
             for param_name, param_value in params.items():
                 existing_param = trial_params[param_name]
                 if not isinstance(param_value, type(existing_param)):
-                    # Enqueued param has distribution that does not match existing param
-                    # (e.g. trying to enqueue categorical to float param).
-                    # We are not doing anything about it here, since sanitization should
-                    # be handled regardless if `skip_if_exists` is `True`.
                     repeated_params.append(False)
                     continue
 
@@ -1182,7 +865,6 @@ class Study:
                 best_trial = self._get_best_trial(deepcopy=False)
                 message += f" Best is trial {best_trial.number} with value: {best_trial.value}."
             except ValueError:
-                # If no feasible trials are completed yet, study.best_trial raises ValueError.
                 pass
             _logger.info(message)
         else:
@@ -1593,7 +1275,6 @@ def copy_study(
     for key, value in from_study.user_attrs.items():
         to_study.set_user_attr(key, value)
 
-    # Trials are deep copied on `add_trials`.
     for trial in from_study.get_trials(deepcopy=False):
         if trial.values is not None and len(to_study.directions) != len(trial.values):
             raise ValueError(

@@ -209,7 +209,6 @@ def _get_pareto_front_info(
     has_constraints = False
     for trial in study.get_trials(deepcopy=False, states=(TrialState.COMPLETE,)):
         if constraints_func is not None:
-            # NOTE(nabenabe0928): This part is deprecated.
             has_constraints = True
             if all(map(lambda x: x <= 0.0, constraints_func(trial))):
                 feasible_trials.append(trial)
@@ -269,8 +268,6 @@ def _get_pareto_front_info(
             return len(trials_with_values[0][1])
         return None
 
-    # Check for `non_best_trials_with_values` can be skipped, because if `best_trials_with_values`
-    # is empty, then `non_best_trials_with_values` will also be empty.
     n_targets = _infer_n_targets(best_trials_with_values) or _infer_n_targets(
         infeasible_trials_with_values
     )
@@ -332,8 +329,6 @@ def _get_pareto_front_info(
     )
 
 
-def _targets_default(trial: FrozenTrial) -> Sequence[float]:
-    return trial.values
 
 
 def _get_non_pareto_front_trials(

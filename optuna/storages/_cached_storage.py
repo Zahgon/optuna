@@ -21,42 +21,15 @@ from optuna.trial import TrialState
 
 class _StudyInfo:
     def __init__(self) -> None:
-        # Trial number to corresponding FrozenTrial.
         self.trials: dict[int, FrozenTrial] = {}
-        # A list of trials and the last trial number which require storage access to read latest
-        # attributes.
         self.unfinished_trial_ids: set[int] = set()
         self.last_finished_trial_id: int = -1
-        # Cache distributions to avoid storage access on distribution consistency check.
         self.param_distribution: dict[str, distributions.BaseDistribution] = {}
         self.directions: list[StudyDirection] | None = None
         self.name: str | None = None
 
 
 class _CachedStorage(BaseStorage, BaseHeartbeat):
-    """A wrapper class of storage backends.
-
-    This class is used in :func:`~optuna.get_storage` function and automatically
-    wraps :class:`~optuna.storages.RDBStorage` class.
-
-    :class:`~optuna.storages._CachedStorage` meets the following **Data persistence** requirements.
-
-    **Data persistence**
-
-    :class:`~optuna.storages._CachedStorage` does not guarantee that write operations are logged
-    into a persistent storage, even when write methods succeed.
-    Thus, when process failure occurs, some writes might be lost.
-    As exceptions, when a persistent storage is available, any writes on any attributes
-    of `Study` and writes on `state` of `Trial` are guaranteed to be persistent.
-    Additionally, any preceding writes on any attributes of `Trial` are guaranteed to
-    be written into a persistent storage before writes on `state` of `Trial` succeed.
-    The same applies for `param`, `user_attrs', 'system_attrs' and 'intermediate_values`
-    attributes.
-
-    Args:
-        backend:
-            :class:`~optuna.storages.RDBStorage` class instance to wrap.
-    """
 
     def __init__(self, backend: RDBStorage) -> None:
         self._backend = backend
@@ -232,8 +205,6 @@ class _CachedStorage(BaseStorage, BaseHeartbeat):
 
         with self._lock:
             study = self._studies[study_id]
-            # We need to sort trials by their number because some samplers assume this behavior.
-            # The following two lines are latency-sensitive.
 
             trials: dict[int, FrozenTrial] | list[FrozenTrial]
 
@@ -264,8 +235,6 @@ class _CachedStorage(BaseStorage, BaseHeartbeat):
                     study.unfinished_trial_ids.add(trial._trial_id)
                     continue
 
-                # Updates to last_finished_trial_id should only be performed here because they must
-                # be executed only when all trials have been considered.
                 study.last_finished_trial_id = max(study.last_finished_trial_id, trial._trial_id)
                 if trial._trial_id in study.unfinished_trial_ids:
                     study.unfinished_trial_ids.remove(trial._trial_id)
@@ -280,8 +249,6 @@ class _CachedStorage(BaseStorage, BaseHeartbeat):
             self._study_id_and_number_to_trial_id[(study_id, trial.number)] = trial._trial_id
             study.trials[trial.number] = trial
 
-    def record_heartbeat(self, trial_id: int) -> None:
-        self._backend.record_heartbeat(trial_id)
 
     def _get_stale_trial_ids(self, study_id: int) -> list[int]:
         return self._backend._get_stale_trial_ids(study_id)

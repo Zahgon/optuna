@@ -24,37 +24,6 @@ _logger = get_logger(__name__)
 
 
 class JournalFileBackend(BaseJournalBackend):
-    """File storage class for Journal log backend.
-
-    Compared to SQLite3, the benefit of this backend is that it is more suitable for
-    environments where the file system does not support ``fcntl()`` file locking.
-    For example, as written in the `SQLite3 FAQ <https://www.sqlite.org/faq.html#q5>`__,
-    SQLite3 might not work on NFS (Network File System) since ``fcntl()`` file locking
-    is broken on many NFS implementations. In such scenarios, this backend provides
-    several workarounds for locking files. For more details, refer to the `Medium blog post`_.
-
-    .. _Medium blog post: https://medium.com/optuna/distributed-optimization-via-nfs\
-    -using-optunas-new-operation-based-logging-storage-9815f9c3f932
-
-    It's important to note that, similar to SQLite3, this class doesn't support a high
-    level of write concurrency, as outlined in the `SQLAlchemy documentation`_. However,
-    in typical situations where the objective function is computationally expensive, Optuna
-    users don't need to be concerned about this limitation. The reason being, the write
-    operations are not the bottleneck as long as the objective function doesn't invoke
-    :meth:`~optuna.trial.Trial.report` and :meth:`~optuna.trial.Trial.set_user_attr` excessively.
-
-    .. _SQLAlchemy documentation: https://docs.sqlalchemy.org/en/20/dialects/sqlite.html\
-    #database-locking-behavior-concurrency
-
-    Args:
-        file_path:
-            Path of file to persist the log to.
-
-        lock_obj:
-            Lock object for process exclusivity. An instance of
-            :class:`~optuna.storages.journal.JournalFileSymlinkLock` and
-            :class:`~optuna.storages.journal.JournalFileOpenLock` can be passed.
-    """
 
     def __init__(self, file_path: str, lock_obj: BaseJournalFileLock | None = None) -> None:
         self._file_path: str = file_path
@@ -65,8 +34,6 @@ class JournalFileBackend(BaseJournalBackend):
 
     def read_logs(self, log_number_from: int) -> Generator[dict[str, Any], None, None]:
         with open(self._file_path, "rb") as f:
-            # Maintain remaining_log_size to allow writing by another process
-            # while reading the log.
             remaining_log_size = os.stat(self._file_path).st_size
             log_number_start = 0
             if log_number_from in self._log_number_offset:
@@ -89,7 +56,6 @@ class JournalFileBackend(BaseJournalBackend):
                 if log_number < log_number_from:
                     continue
 
-                # Ensure that each line ends with line separators (\n, \r\n).
                 if not line.endswith(b"\n"):
                     last_decode_error = ValueError("Invalid log format.")
                     del self._log_number_offset[log_number + 1]
@@ -122,18 +88,6 @@ class BaseJournalFileLock(abc.ABC):
 
 
 class JournalFileSymlinkLock(BaseJournalFileLock):
-    """Lock class for synchronizing processes for NFSv2 or later.
-
-    On acquiring the lock, link system call is called to create an exclusive file. The file is
-    deleted when the lock is released. In NFS environments prior to NFSv3, use this instead of
-    :class:`~optuna.storages.journal.JournalFileOpenLock`.
-
-    Args:
-        filepath:
-            The path of the file whose race condition must be protected.
-        grace_period:
-            Grace period before an existing lock is forcibly released.
-    """
 
     def __init__(self, filepath: str, grace_period: int | None = 30) -> None:
         self._lock_target_file = filepath
@@ -213,19 +167,6 @@ class JournalFileSymlinkLock(BaseJournalFileLock):
 
 
 class JournalFileOpenLock(BaseJournalFileLock):
-    """Lock class for synchronizing processes for NFSv3 or later.
-
-    On acquiring the lock, open system call is called with the O_EXCL option to create an exclusive
-    file. The file is deleted when the lock is released. This class is only supported when using
-    NFSv3 or later on kernel 2.6 or later. In prior NFS environments, use
-    :class:`~optuna.storages.journal.JournalFileSymlinkLock`.
-
-    Args:
-        filepath:
-            The path of the file whose race condition must be protected.
-        grace_period:
-            Grace period before an existing lock is forcibly released.
-    """
 
     def __init__(self, filepath: str, grace_period: int | None = 30) -> None:
         self._lock_file = filepath + LOCK_FILE_SUFFIX

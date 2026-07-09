@@ -18,41 +18,6 @@ _logger = logging.get_logger(__name__)
 
 
 class StudySummary:
-    """Basic attributes and aggregated results of a :class:`~optuna.study.Study`.
-
-    See also :func:`optuna.study.get_all_study_summaries`.
-
-    Attributes:
-        study_name:
-            Name of the :class:`~optuna.study.Study`.
-        direction:
-            :class:`~optuna.study.StudyDirection` of the :class:`~optuna.study.Study`.
-
-            .. note::
-                This attribute is only available during single-objective optimization.
-        directions:
-            A sequence of :class:`~optuna.study.StudyDirection` objects.
-        best_trial:
-            :class:`optuna.trial.FrozenTrial` with best objective value in the
-            :class:`~optuna.study.Study`.
-        user_attrs:
-            Dictionary that contains the attributes of the :class:`~optuna.study.Study` set with
-            :func:`optuna.study.Study.set_user_attr`.
-        system_attrs:
-            Dictionary that contains the attributes of the :class:`~optuna.study.Study` internally
-            set by Optuna.
-
-            .. warning::
-                Deprecated in v3.1.0. ``system_attrs`` argument will be removed in the future.
-                The removal of this feature is currently scheduled for v5.0.0,
-                but this schedule is subject to change.
-                See https://github.com/optuna/optuna/releases/tag/v3.1.0.
-        n_trials:
-            The number of trials ran in the :class:`~optuna.study.Study`.
-        datetime_start:
-            Datetime where the :class:`~optuna.study.Study` started.
-
-    """
 
     def __init__(
         self,
@@ -101,27 +66,5 @@ class StudySummary:
 
         return self._study_id <= other._study_id
 
-    @property
-    def direction(self) -> StudyDirection:
-        if len(self._directions) > 1:
-            raise RuntimeError(
-                "This attribute is not available during multi-objective optimization."
-            )
 
-        return self._directions[0]
 
-    @property
-    def directions(self) -> Sequence[StudyDirection]:
-        return self._directions
-
-    @property
-    def system_attrs(self) -> dict[str, Any]:
-        optuna_warn(
-            "`system_attrs` has been deprecated in v3.1.0. "
-            "The removal of this feature is currently scheduled for v5.0.0, "
-            "but this schedule is subject to change. "
-            "See https://github.com/optuna/optuna/releases/tag/v3.1.0.",
-            FutureWarning,
-        )
-
-        return self._system_attrs

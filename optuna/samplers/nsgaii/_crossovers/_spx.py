@@ -14,21 +14,6 @@ if TYPE_CHECKING:
 
 @experimental_class("3.0.0")
 class SPXCrossover(BaseCrossover):
-    """Simplex Crossover operation used by :class:`~optuna.samplers.NSGAIISampler`.
-
-    Uniformly samples child individuals from within a single simplex
-    that is similar to the simplex produced by the parent individual.
-    For further information about SPX crossover, please refer to the following paper:
-
-    - `Shigeyoshi Tsutsui, David E. Goldberg, and Kumara Sastry.
-      Progress Toward Linkage Learning in Real-Coded GAs with Simplex Crossover.
-      IlliGAL Report. 2000.
-      <https://www.researchgate.net/publication/2388486_Progress_Toward_Linkage_Learning_in_Real-Coded_GAs_with_Simplex_Crossover>`__
-
-    Args:
-        epsilon:
-            Expansion rate. If not specified, defaults to ``sqrt(len(search_space) + 2)``.
-    """
 
     n_parents = 3
 
@@ -42,8 +27,6 @@ class SPXCrossover(BaseCrossover):
         study: Study,
         search_space_bounds: np.ndarray,
     ) -> np.ndarray:
-        # https://www.researchgate.net/publication/2388486_Progress_Toward_Linkage_Learning_in_Real-Coded_GAs_with_Simplex_Crossover
-        # Section 2 A Brief Review of SPX
 
         n = self.n_parents - 1
         G = np.mean(parents_params, axis=0)  # Equation (1).

@@ -16,51 +16,6 @@ if TYPE_CHECKING:
 
 
 class _SearchSpaceTransform:
-    """Transform a search space and parameter configurations to continuous space.
-
-    The search space bounds and parameter configurations are represented as ``numpy.ndarray``s and
-    transformed into continuous space. Bounds and parameters associated with categorical
-    distributions are one-hot encoded. Parameter configurations in this space can additionally be
-    untransformed, or mapped back to the original space. This type of
-    transformation/untransformation is useful for e.g. implementing samplers without having to
-    condition on distribution types before sampling parameter values.
-
-    Args:
-        search_space:
-            The search space. If any transformations are to be applied, parameter configurations
-            are assumed to hold parameter values for all of the distributions defined in this
-            search space. Otherwise, assertion failures will be raised.
-        transform_log:
-            If :obj:`True`, apply log/exp operations to the bounds and parameters with
-            corresponding distributions in log space during transformation/untransformation.
-            Should always be :obj:`True` if any parameters are going to be sampled from the
-            transformed space.
-        transform_step:
-            If :obj:`True`, offset the lower and higher bounds by a half step each, increasing the
-            space by one step. This allows fair sampling for values close to the bounds.
-            Should always be :obj:`True` if any parameters are going to be sampled from the
-            transformed space.
-        transform_0_1:
-            If :obj:`True`, apply a linear transformation to the bounds and parameters so that
-            they are in the unit cube.
-
-    Attributes:
-        bounds:
-            Constructed bounds from the given search space.
-        column_to_encoded_columns:
-            Constructed mapping from original parameter column index to encoded column indices.
-        encoded_column_to_column:
-            Constructed mapping from encoded column index to original parameter column index.
-
-    Note:
-        Parameter values are not scaled to the unit cube.
-
-    Note:
-        ``transform_log`` and ``transform_step`` are useful for constructing bounds and parameters
-        without any actual transformations by setting those arguments to :obj:`False`. This is
-        needed for e.g. the hyperparameter importance assessments.
-
-    """
 
     def __init__(
         self,
@@ -79,20 +34,8 @@ class _SearchSpaceTransform:
         self._transform_log = transform_log
         self._transform_0_1 = transform_0_1
 
-    @property
-    def bounds(self) -> np.ndarray:
-        if self._transform_0_1:
-            return np.array([[0.0, 1.0]] * self._raw_bounds.shape[0])
-        else:
-            return self._raw_bounds
 
-    @property
-    def column_to_encoded_columns(self) -> list[np.ndarray]:
-        return self._column_to_encoded_columns
 
-    @property
-    def encoded_column_to_column(self) -> np.ndarray:
-        return self._encoded_column_to_column
 
     def transform(self, params: dict[str, Any]) -> np.ndarray:
         """Transform a parameter configuration from actual values to continuous space.
@@ -160,7 +103,6 @@ class _SearchSpaceTransform:
             trans_param = trans_params[encoded_columns]
 
             if isinstance(distribution, CategoricalDistribution):
-                # Select the highest rated one-hot encoding.
                 param = distribution.to_external_repr(trans_param.argmax())
             else:
                 param = _untransform_numerical_param(

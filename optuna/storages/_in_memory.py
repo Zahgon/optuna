@@ -24,27 +24,6 @@ _logger = optuna.logging.get_logger(__name__)
 
 
 class InMemoryStorage(BaseStorage):
-    """Storage class that stores data in memory of the Python process.
-
-    Example:
-
-        Create an :class:`~optuna.storages.InMemoryStorage` instance.
-
-        .. testcode::
-
-            import optuna
-
-
-            def objective(trial):
-                x = trial.suggest_float("x", -100, 100)
-                return x**2
-
-
-            storage = optuna.storages.InMemoryStorage()
-
-            study = optuna.create_study(storage=storage)
-            study.optimize(objective, n_trials=10)
-    """
 
     def __init__(self) -> None:
         self._trial_id_to_study_id_and_number: dict[int, tuple[int, int]] = {}
@@ -200,16 +179,13 @@ class InMemoryStorage(BaseStorage):
             self.check_trial_is_updatable(trial_id, trial.state)
 
             study_id = self._trial_id_to_study_id_and_number[trial_id][0]
-            # Check param distribution compatibility with previous trial(s).
             if param_name in self._studies[study_id].param_distribution:
                 distributions.check_distribution_compatibility(
                     self._studies[study_id].param_distribution[param_name], distribution
                 )
 
-            # Set param distribution.
             self._studies[study_id].param_distribution[param_name] = distribution
 
-            # Set param.
             trial = copy.copy(trial)
             trial.params = copy.copy(trial.params)
             trial.params[param_name] = distribution.to_external_repr(param_value_internal)
@@ -235,11 +211,6 @@ class InMemoryStorage(BaseStorage):
 
             return trial._trial_id
 
-    def get_trial_number_from_id(self, trial_id: int) -> int:
-        with self._lock:
-            self._check_trial_id(trial_id)
-
-            return self._trial_id_to_study_id_and_number[trial_id][1]
 
     def get_best_trial(self, study_id: int) -> FrozenTrial:
         with self._lock:
@@ -310,7 +281,6 @@ class InMemoryStorage(BaseStorage):
         if best_trial.value is None:
             self._studies[study_id].best_trial_id = trial_id
             return
-        # Complete trials do not have `None` values.
         assert trial.value is not None
         best_value = best_trial.value
         new_value = trial.value
@@ -377,8 +347,6 @@ class InMemoryStorage(BaseStorage):
         with self._lock:
             self._check_study_id(study_id)
 
-            # Optimized retrieval of trials in the WAITING state to improve performance
-            # for the call, `get_all_trials(states=(TrialState.WAITING,))`.
             if states == (TrialState.WAITING,):
                 trials: list[FrozenTrial] = []
                 for trial in self._studies[study_id].trials[
@@ -399,7 +367,6 @@ class InMemoryStorage(BaseStorage):
             if deepcopy:
                 trials = copy.deepcopy(trials)
             else:
-                # This copy is required for the replacing trick in `set_trial_xxx`.
                 trials = copy.copy(trials)
 
         return trials

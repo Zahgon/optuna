@@ -145,15 +145,12 @@ def _get_parallel_coordinate_info(
 
     if target is None:
 
-        def _target(t: FrozenTrial) -> float:
-            return cast(float, t.value)
 
         target = _target
 
     skipped_trial_numbers = _get_skipped_trial_numbers(trials, sorted_params)
 
     objectives = tuple([target(t) for t in trials if t.number not in skipped_trial_numbers])
-    # The value of (0, 0) is a dummy range. It is ignored when we plot.
     objective_range = (min(objectives), max(objectives)) if len(objectives) > 0 else (0, 0)
     dim_objective = _DimensionInfo(
         label=target_name,
@@ -250,13 +247,9 @@ def _get_parallel_coordinate_info(
 
     if numeric_cat_params_indices:
         dims.insert(0, dim_objective)
-        # np.lexsort consumes the sort keys the order from back to front.
-        # So the values of parameters have to be reversed the order.
         idx = np.lexsort([dims[index].values for index in numeric_cat_params_indices][::-1])
         updated_dims = []
         for dim in dims:
-            # Since the values are mapped to other categories by the index,
-            # the index will be swapped according to the sorted index of numeric params.
             updated_dims.append(
                 _DimensionInfo(
                     label=dim.label,

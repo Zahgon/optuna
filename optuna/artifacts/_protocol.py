@@ -9,14 +9,6 @@ if TYPE_CHECKING:
 
 
 class ArtifactStore(Protocol):
-    """A protocol defining the interface for an artifact backend.
-
-    The methods defined in this protocol are not supposed to be directly called by library users.
-
-    An artifact backend is responsible for managing the storage and retrieval
-    of artifact data. The backend should provide methods for opening, writing
-    and removing artifacts.
-    """
 
     def open_reader(self, artifact_id: str) -> BinaryIO:
         """Open the artifact identified by the artifact_id.

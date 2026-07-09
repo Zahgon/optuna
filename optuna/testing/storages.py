@@ -50,33 +50,6 @@ STORAGE_MODES_HEARTBEAT = [
 SQLITE3_TIMEOUT = 300
 
 
-@contextmanager
-def _lock_to_search_for_free_port() -> Generator[None, None, None]:
-    if sys.platform == "win32":
-        lock_path = os.path.join(
-            os.environ.get("PROGRAMDATA", "C:\\ProgramData"),
-            "optuna",
-            "optuna_find_free_port.lock",
-        )
-    else:
-        lock_path = "/tmp/optuna_find_free_port.lock"
-
-    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
-    lockfile = open(lock_path, "w")
-    if sys.platform == "win32":
-        import msvcrt
-
-        msvcrt.locking(lockfile.fileno(), msvcrt.LK_LOCK, 1)
-        yield
-        msvcrt.locking(lockfile.fileno(), msvcrt.LK_UNLCK, 1)
-    else:
-        import fcntl
-
-        fcntl.flock(lockfile, fcntl.LOCK_EX)
-        yield
-        fcntl.flock(lockfile, fcntl.LOCK_UN)
-
-    lockfile.close()
 
 
 class StorageSupplier(AbstractContextManager):
@@ -151,19 +124,6 @@ class StorageSupplier(AbstractContextManager):
 
         return self.storage
 
-    def _create_proxy(
-        self, storage: BaseStorage, thread_pool: ThreadPoolExecutor | None = None
-    ) -> GrpcStorageProxy:
-        with _lock_to_search_for_free_port():
-            port = _find_free_port()
-            self.server = optuna.storages._grpc.server.make_server(
-                storage, "localhost", port, thread_pool=thread_pool
-            )
-            self.thread = threading.Thread(target=self.server.start)
-            self.thread.start()
-            self.proxy = GrpcStorageProxy(host="localhost", port=port)
-            self.proxy.wait_server_ready(timeout=60)
-            return self.proxy
 
     def __exit__(
         self,
@@ -171,8 +131,6 @@ class StorageSupplier(AbstractContextManager):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        # Unit tests create many short-lived Engine objects, so the connections created by the
-        # engine should be explicitly closed.
         if isinstance(self.storage, optuna.storages.RDBStorage):
             self.storage.engine.dispose()
         elif isinstance(self.storage, optuna.storages._CachedStorage):
@@ -196,12 +154,3 @@ class StorageSupplier(AbstractContextManager):
             self.thread = None
 
 
-def _find_free_port() -> int:
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    for port in range(13000, 13100):
-        try:
-            sock.bind(("localhost", port))
-            return port
-        except OSError:
-            continue
-    assert False, "must not reach here"

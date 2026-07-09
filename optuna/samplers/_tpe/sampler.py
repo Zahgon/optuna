@@ -48,16 +48,11 @@ EPS = 1e-12
 _logger = get_logger(__name__)
 
 _RELATIVE_PARAMS_KEY = "tpe:relative_params"
-# The value of system_attrs must be less than 2046 characters on RDBStorage.
 _SYSTEM_ATTR_MAX_LENGTH = 2045
 
 
-def default_gamma(x: int) -> int:
-    return min(math.ceil(0.1 * x), 25)
 
 
-def hyperopt_default_gamma(x: int) -> int:
-    return min(math.ceil(0.25 * x**0.5), 25)
 
 
 def default_weights(x: int) -> np.ndarray:
@@ -85,258 +80,6 @@ def _warn_if_deprecated_argument(
 
 
 class TPESampler(BaseSampler):
-    """Sampler using TPE (Tree-structured Parzen Estimator) algorithm.
-
-    On each trial, for each parameter, TPE fits one Gaussian Mixture Model (GMM) ``l(x)`` to
-    the set of parameter values associated with the best objective values, and another GMM
-    ``g(x)`` to the remaining parameter values. It chooses the parameter value ``x`` that
-    maximizes the ratio ``l(x)/g(x)``.
-
-    For further information about TPE algorithm, please refer to the following papers:
-
-    - `Algorithms for Hyper-Parameter Optimization
-      <https://papers.nips.cc/paper/4443-algorithms-for-hyper-parameter-optimization.pdf>`__
-    - `Making a Science of Model Search: Hyperparameter Optimization in Hundreds of
-      Dimensions for Vision Architectures <http://proceedings.mlr.press/v28/bergstra13.pdf>`__
-    - `Tree-Structured Parzen Estimator: Understanding Its Algorithm Components and Their Roles for
-      Better Empirical Performance <https://arxiv.org/abs/2304.11127>`__
-
-    For multi-objective TPE (MOTPE), please refer to the following papers:
-
-    - `Multiobjective Tree-Structured Parzen Estimator for Computationally Expensive Optimization
-      Problems <https://doi.org/10.1145/3377930.3389817>`__
-    - `Multiobjective Tree-Structured Parzen Estimator <https://doi.org/10.1613/jair.1.13188>`__
-
-    For constrained TPE (c-TPE), please refer to the following papers:
-
-    - `Optuna Constrained Tree-Structured Parzen Estimator Is a Joint Density Generalization of
-      c-TPE <https://arxiv.org/abs/2606.09889>`__
-    - `c-TPE: Tree-structured Parzen Estimator with Inequality Constraints for Expensive
-      Hyperparameter Optimization <https://arxiv.org/abs/2211.14411>`__
-
-    The first paper explains how Optuna handles constraints, while the second provides the
-    background of constrained optimization for TPE in general. Notably, the Optuna algorithm
-    differs from the one proposed in the second paper. OptunaHub provides
-    `c-TPE proposed by the second paper <https://hub.optuna.org/samplers/ctpe/>`__.
-
-    For the `categorical_distance_func`, please refer to the following paper:
-
-    - `Tree-Structured Parzen Estimator Can Solve Black-Box Combinatorial Optimization More
-      Efficiently <https://arxiv.org/abs/2507.08053>`__
-
-    Please also check our articles:
-
-    - `Significant Speed Up of Multi-Objective TPESampler in Optuna v4.0.0
-      <https://medium.com/optuna/significant-speed-up-of-multi-objective-tpesampler-in-optuna-v4-0-0-2bacdcd1d99b>`__
-    - `Multivariate TPE Makes Optuna Even More Powerful
-      <https://medium.com/optuna/multivariate-tpe-makes-optuna-even-more-powerful-63c4bfbaebe2>`__
-
-    Example:
-        An example of a single-objective optimization is as follows:
-
-        .. testcode::
-
-            import optuna
-            from optuna.samplers import TPESampler
-
-
-            def objective(trial):
-                x = trial.suggest_float("x", -10, 10)
-                return x**2
-
-
-            study = optuna.create_study(sampler=TPESampler())
-            study.optimize(objective, n_trials=10)
-
-    .. note::
-        :class:`~optuna.samplers.TPESampler`, which became much faster in v4.0.0, c.f. `our article
-        <https://medium.com/optuna/significant-speed-up-of-multi-objective-tpesampler-in-optuna-v4-0-0-2bacdcd1d99b>`__,
-        can handle multi-objective optimization with many trials as well.
-        Please note that :class:`~optuna.samplers.NSGAIISampler` will be used by default for
-        multi-objective optimization, so if users would like to use
-        :class:`~optuna.samplers.TPESampler` for multi-objective optimization, ``sampler`` must be
-        explicitly specified when study is created.
-
-    Args:
-        n_startup_trials:
-            The random sampling is used instead of the TPE algorithm until the given number
-            of trials finish in the same study.
-        n_ei_candidates:
-            Number of candidate samples used to calculate the expected improvement.
-        seed:
-            Seed for random number generator.
-        multivariate:
-            If this is :obj:`True`, the multivariate TPE is used when suggesting parameters.
-            The multivariate TPE is reported to outperform the independent TPE. See `BOHB: Robust
-            and Efficient Hyperparameter Optimization at Scale
-            <http://proceedings.mlr.press/v80/falkner18a.html>`__ and `our article
-            <https://medium.com/optuna/multivariate-tpe-makes-optuna-even-more-powerful-63c4bfbaebe2>`__
-            for more details.
-
-            .. note::
-                Added in v2.2.0 as an experimental feature. The interface may change in newer
-                versions without prior notice. See
-                https://github.com/optuna/optuna/releases/tag/v2.2.0.
-        group:
-            If this and ``multivariate`` are :obj:`True`, the multivariate TPE with the group
-            decomposed search space is used when suggesting parameters.
-            The sampling algorithm decomposes the search space based on past trials and samples
-            from the joint distribution in each decomposed subspace.
-            The decomposed subspaces are a partition of the whole search space. Each subspace
-            is a maximal subset of the whole search space, which satisfies the following:
-            for a trial in completed trials, the intersection of the subspace and the search space
-            of the trial becomes subspace itself or an empty set.
-            Sampling from the joint distribution on the subspace is realized by multivariate TPE.
-            If ``group`` is :obj:`True`, ``multivariate`` must be :obj:`True` as well.
-
-            .. note::
-                Added in v2.8.0 as an experimental feature. The interface may change in newer
-                versions without prior notice. See
-                https://github.com/optuna/optuna/releases/tag/v2.8.0.
-
-            Example:
-
-            .. testcode::
-
-                import optuna
-
-
-                def objective(trial):
-                    x = trial.suggest_categorical("x", ["A", "B"])
-                    if x == "A":
-                        return trial.suggest_float("y", -10, 10)
-                    else:
-                        return trial.suggest_int("z", -10, 10)
-
-
-                sampler = optuna.samplers.TPESampler(multivariate=True, group=True)
-                study = optuna.create_study(sampler=sampler)
-                study.optimize(objective, n_trials=10)
-        constant_liar:
-            If :obj:`True`, penalize running trials to avoid suggesting parameter configurations
-            nearby. Defaults to :obj:`True`.
-
-            .. note::
-                Abnormally terminated trials often leave behind a record with a state of
-                ``RUNNING`` in the storage.
-                Such "zombie" trial parameters will be avoided by the constant liar algorithm
-                during subsequent sampling.
-                When using an :class:`~optuna.storages.RDBStorage`, it is possible to enable the
-                ``heartbeat_interval`` to change the records for abnormally terminated trials to
-                ``FAIL``.
-        constraints_func:
-            An optional function that computes the objective constraints. It must take a
-            :class:`~optuna.trial.FrozenTrial` and return the constraints. The return value must
-            be a sequence of :obj:`float` s. A value strictly larger than 0 means that a
-            constraints is violated. A value equal to or smaller than 0 is considered feasible.
-            If ``constraints_func`` returns more than one value for a trial, that trial is
-            considered feasible if and only if all values are equal to 0 or smaller.
-
-            The ``constraints_func`` will be evaluated after each successful trial.
-            The function won't be called when trials fail or they are pruned, but this behavior is
-            subject to change in the future releases.
-
-            .. note::
-                Added in v3.0.0 as an experimental feature. The interface may change in newer
-                versions without prior notice.
-                See https://github.com/optuna/optuna/releases/tag/v3.0.0.
-        consider_prior:
-            Enhance the stability of Parzen estimator by imposing a Gaussian prior when
-            :obj:`True`. The prior is only effective if the sampling distribution is
-            either :class:`~optuna.distributions.FloatDistribution`,
-            or :class:`~optuna.distributions.IntDistribution`.
-
-            .. warning::
-                Deprecated in v4.3.0. ``consider_prior`` argument will be removed in the future.
-                The removal of this feature is currently scheduled for v6.0.0,
-                but this schedule is subject to change.
-                From v4.3.0 onward, ``consider_prior`` automatically falls back to ``True``.
-                See https://github.com/optuna/optuna/releases/tag/v4.3.0.
-        prior_weight:
-            The weight of the prior. This argument is used in
-            :class:`~optuna.distributions.FloatDistribution`,
-            :class:`~optuna.distributions.IntDistribution`, and
-            :class:`~optuna.distributions.CategoricalDistribution`.
-
-            .. warning::
-                Deprecated in v4.9.0. ``prior_weight`` argument will be removed in the future.
-                The removal of this feature is currently scheduled for v6.0.0,
-                but this schedule is subject to change.
-                See https://github.com/optuna/optuna/releases/tag/v4.9.0.
-        consider_magic_clip:
-            Enable a heuristic to limit the smallest variances of Gaussians used in
-            the Parzen estimator.
-
-            .. warning::
-                Deprecated in v4.9.0. ``consider_magic_clip`` argument will be removed in the
-                future. The removal of this feature is currently scheduled for v6.0.0,
-                but this schedule is subject to change.
-                See https://github.com/optuna/optuna/releases/tag/v4.9.0.
-        consider_endpoints:
-            Take endpoints of domains into account when calculating variances of Gaussians
-            in Parzen estimator. See the original paper for details on the heuristics
-            to calculate the variances.
-
-            .. warning::
-                Deprecated in v4.9.0. ``consider_endpoints`` argument will be removed in the
-                future. The removal of this feature is currently scheduled for v6.0.0,
-                but this schedule is subject to change.
-                See https://github.com/optuna/optuna/releases/tag/v4.9.0.
-        gamma:
-            A function that takes the number of finished trials and returns the number
-            of trials to form a density function for samples with low grains.
-            See the original paper for more details.
-
-            .. warning::
-                Deprecated in v4.9.0. ``gamma`` argument will be removed in the future.
-                The removal of this feature is currently scheduled for v6.0.0,
-                but this schedule is subject to change.
-                See https://github.com/optuna/optuna/releases/tag/v4.9.0.
-        weights:
-            A function that takes the number of finished trials and returns a weight for them.
-            See `Making a Science of Model Search: Hyperparameter Optimization in Hundreds of
-            Dimensions for Vision Architectures
-            <http://proceedings.mlr.press/v28/bergstra13.pdf>`__ for more details.
-
-            .. note::
-                In the multi-objective case, this argument is only used to compute the weights of
-                bad trials, i.e., trials to construct `g(x)` in the `paper
-                <https://papers.nips.cc/paper/4443-algorithms-for-hyper-parameter-optimization.pdf>`__
-                ). The weights of good trials, i.e., trials to construct `l(x)`, are computed by a
-                rule based on the hypervolume contribution proposed in the `paper of MOTPE
-                <https://doi.org/10.1613/jair.1.13188>`__.
-
-            .. warning::
-                Deprecated in v4.9.0. ``weights`` argument will be removed in the future.
-                The removal of this feature is currently scheduled for v6.0.0,
-                but this schedule is subject to change.
-                See https://github.com/optuna/optuna/releases/tag/v4.9.0.
-        warn_independent_sampling:
-            If this is :obj:`True` and ``multivariate=True``, a warning message is emitted when
-            the value of a parameter is sampled by using an independent sampler.
-            If ``multivariate=False``, this flag has no effect.
-
-            .. warning::
-                Deprecated in v4.9.0. ``warn_independent_sampling`` argument will be removed in
-                the future. The removal of this feature is currently scheduled for v6.0.0,
-                but this schedule is subject to change.
-                See https://github.com/optuna/optuna/releases/tag/v4.9.0.
-        categorical_distance_func:
-            A dictionary of distance functions for categorical parameters. The key is the name of
-            the categorical parameter and the value is a distance function that takes two
-            :class:`~optuna.distributions.CategoricalChoiceType` s and returns a :obj:`float`
-            value. The distance function must return a non-negative value.
-
-            While categorical choices are handled equally by default, this option allows users to
-            specify prior knowledge on the structure of categorical parameters. When specified,
-            categorical choices closer to current best choices are more likely to be sampled.
-
-            .. warning::
-                Deprecated in v4.9.0. ``categorical_distance_func`` argument will be removed in
-                the future. The removal of this feature is currently scheduled for v5.0.0,
-                but this schedule is subject to change.
-                See https://github.com/optuna/optuna/releases/tag/v4.9.0.
-    """
 
     @convert_positional_args(
         previous_positional_arg_names=[
@@ -422,7 +165,6 @@ class TPESampler(BaseSampler):
         self._search_space = IntersectionSearchSpace(include_pruned=True)
         self._constant_liar = constant_liar
         self._constraints_func = constraints_func
-        # NOTE(nabenabe0928): Users can overwrite _ParzenEstimator to customize the TPE behavior.
         self._parzen_estimator_cls = _ParzenEstimator
 
         if multivariate:
@@ -443,34 +185,6 @@ class TPESampler(BaseSampler):
         self._rng.rng.seed()
         self._random_sampler.reseed_rng()
 
-    def infer_relative_search_space(
-        self, study: Study, trial: FrozenTrial
-    ) -> dict[str, BaseDistribution]:
-        if not self._multivariate:
-            return {}
-
-        search_space: dict[str, BaseDistribution] = {}
-        use_trial_cache = self._multivariate or not self._constant_liar
-
-        if self._group:
-            assert self._group_decomposed_search_space is not None
-            self._search_space_group = self._group_decomposed_search_space.calculate(
-                study, use_trial_cache
-            )
-            for sub_space in self._search_space_group.search_spaces:
-                # Sort keys because Python's string hashing is nondeterministic.
-                for name, distribution in sorted(sub_space.items()):
-                    if distribution.single():
-                        continue
-                    search_space[name] = distribution
-            return search_space
-
-        for name, distribution in self._search_space.calculate(study, use_trial_cache).items():
-            if distribution.single():
-                continue
-            search_space[name] = distribution
-
-        return search_space
 
     def sample_relative(
         self, study: Study, trial: FrozenTrial, search_space: dict[str, BaseDistribution]
@@ -480,13 +194,10 @@ class TPESampler(BaseSampler):
             params = {}
             for sub_space in self._search_space_group.search_spaces:
                 _search_space = {}
-                # Sort keys because Python's string hashing is nondeterministic.
                 for name, distribution in sorted(sub_space.items()):
                     if distribution.single():
                         continue
                     if name not in search_space:
-                        # When used together with PartialFixedSampler, the search space may be
-                        # smaller than what is inferred from the study.
                         continue
                     _search_space[name] = distribution
                 params.update(self._sample_relative(study, trial, _search_space))
@@ -494,7 +205,6 @@ class TPESampler(BaseSampler):
             params = self._sample_relative(study, trial, search_space)
 
         if params != {} and self._constant_liar:
-            # Share the params obtained by the relative sampling with the other processes.
             params_str = json.dumps(params)
             for i in range(0, len(params_str), _SYSTEM_ATTR_MAX_LENGTH):
                 study._storage.set_trial_system_attr(
@@ -512,7 +222,6 @@ class TPESampler(BaseSampler):
 
         states = (TrialState.COMPLETE, TrialState.PRUNED)
         trials = study._get_trials(deepcopy=False, states=states, use_cache=True)
-        # If the number of samples is insufficient, we run random trial.
         if len(trials) < self._n_startup_trials:
             return {}
 
@@ -528,14 +237,12 @@ class TPESampler(BaseSampler):
         states = (TrialState.COMPLETE, TrialState.PRUNED)
         trials = study._get_trials(deepcopy=False, states=states, use_cache=True)
 
-        # If the number of samples is insufficient, we run random trial.
         if len(trials) < self._n_startup_trials:
             return self._random_sampler.sample_independent(
                 study, trial, param_name, param_distribution
             )
 
         if self._warn_independent_sampling and self._multivariate:
-            # Avoid independent warning at the first sampling of `param_name`.
             if any(param_name in trial.params for trial in trials):
                 _logger.warning(
                     _INDEPENDENT_SAMPLING_WARNING_TEMPLATE.format(
@@ -554,8 +261,6 @@ class TPESampler(BaseSampler):
 
     def _get_params(self, trial: FrozenTrial) -> dict[str, Any]:
         if trial.state.is_finished() or not self._multivariate:
-            # NOTE(not522): If not multivariate, `relative_params` does not exist and
-            # `system_attrs` access will be unnecessary, so we skip it.
             return trial.params
 
         params_strs = []
@@ -569,8 +274,6 @@ class TPESampler(BaseSampler):
         try:
             params = json.loads("".join(params_strs))
         except json.JSONDecodeError:
-            # A race condition can occur when multiple workers write chunks
-            # concurrently. If the JSON is incomplete, fall back to trial.params.
             return trial.params
         params.update(trial.params)
         return params
@@ -598,10 +301,8 @@ class TPESampler(BaseSampler):
         trials = study._get_trials(deepcopy=False, states=states, use_cache=use_cache)
 
         if self._constant_liar:
-            # For constant_liar, filter out the current trial.
             trials = [t for t in trials if trial.number != t.number]
 
-        # We divide data into below and above.
         n = sum(trial.state != TrialState.RUNNING for trial in trials)  # Ignore running trials.
         below_trials, above_trials = _split_trials(
             study,
@@ -687,46 +388,7 @@ class TPESampler(BaseSampler):
     @staticmethod
     @_deprecated.deprecated_func("4.9.0", "6.0.0")
     def hyperopt_parameters() -> dict[str, Any]:
-        """Return the the default parameters of hyperopt (v0.1.2).
-
-        :class:`~optuna.samplers.TPESampler` can be instantiated with the parameters returned
-        by this method.
-
-        Example:
-
-            Create a :class:`~optuna.samplers.TPESampler` instance with the default
-            parameters of `hyperopt <https://github.com/hyperopt/hyperopt/tree/0.1.2>`__.
-
-            .. testcode::
-
-                import optuna
-                from optuna.samplers import TPESampler
-
-
-                def objective(trial):
-                    x = trial.suggest_float("x", -10, 10)
-                    return x**2
-
-
-                sampler = TPESampler(**TPESampler.hyperopt_parameters())
-                study = optuna.create_study(sampler=sampler)
-                study.optimize(objective, n_trials=10)
-
-        Returns:
-            A dictionary containing the default parameters of hyperopt.
-
-        """
-
-        return {
-            "consider_prior": True,
-            "prior_weight": 1.0,
-            "consider_magic_clip": True,
-            "consider_endpoints": False,
-            "n_startup_trials": 20,
-            "n_ei_candidates": 24,
-            "gamma": hyperopt_default_gamma,
-            "weights": default_weights,
-        }
+        pass
 
     def before_trial(self, study: Study, trial: FrozenTrial) -> None:
         self._random_sampler.before_trial(study, trial)
@@ -761,8 +423,6 @@ def _split_trials(
 
     for trial in trials:
         if trial.state == TrialState.RUNNING:
-            # We should check if the trial is RUNNING before the feasibility check
-            # because its constraint values have not yet been set.
             running_trials.append(trial)
         elif constraints_enabled and _get_infeasible_trial_score(trial) > 0:
             infeasible_trials.append(trial)
@@ -773,12 +433,9 @@ def _split_trials(
         else:
             assert False
 
-    # We divide data into below and above.
     below_complete, above_complete = _split_complete_trials(complete_trials, study, n_below)
-    # This ensures `n_below` is non-negative to prevent unexpected trial splits.
     n_below = max(0, n_below - len(below_complete))
     below_pruned, above_pruned = _split_pruned_trials(pruned_trials, study, n_below)
-    # This ensures `n_below` is non-negative to prevent unexpected trial splits.
     n_below = max(0, n_below - len(below_pruned))
     below_infeasible, above_infeasible = _split_infeasible_trials(infeasible_trials, n_below)
 
@@ -877,7 +534,6 @@ def _get_infeasible_trial_score(trial: FrozenTrial) -> float:
         )
         return float("inf")
     else:
-        # Violation values of infeasible dimensions are summed up.
         return sum(v for v in constraint if v > 0)
 
 
@@ -910,8 +566,6 @@ def _calculate_weights_below_for_multi_objective(
     pareto_sols = lvals[on_front]
     hv = compute_hypervolume(pareto_sols, ref_point, assume_pareto=True)
     if math.isinf(hv):
-        # TODO(nabenabe): Assign EPS to non-Pareto solutions, and
-        # solutions with finite contrib if hv is inf. Ref: PR#5813.
         return weights_below
 
     loo_mat = ~np.eye(pareto_sols.shape[0], dtype=bool)  # Leave-one-out bool matrix.

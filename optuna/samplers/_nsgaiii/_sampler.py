@@ -31,53 +31,6 @@ if TYPE_CHECKING:
 
 @experimental_class("3.2.0")
 class NSGAIIISampler(BaseGASampler):
-    """Multi-objective sampler using the NSGA-III algorithm.
-
-    NSGA-III stands for "Nondominated Sorting Genetic Algorithm III",
-    which is a modified version of NSGA-II for many objective optimization problem.
-
-    .. note::
-        When optimizing many objectives, a large fraction of trials may become non-dominated
-        in general due to the curse of dimensionality in the objective space. If possible, consider
-        modeling some objectives as constraints. Constraints can be passed via the
-        `constraints_func` argument at the sampler initialization.
-        :class:`~optuna.samplers.NSGAIISampler`, :class:`~optuna.samplers.TPESampler`, and
-        :class:`~optuna.samplers.GPSampler` also support constrained multi-objective optimization.
-        Since Bayesian optimization is often sample efficient, it is worth considering
-        :class:`~optuna.samplers.TPESampler`, or :class:`~optuna.samplers.GPSampler` for
-        ``n_trials < 1000``.
-
-    For further information about NSGA-III, please refer to the following papers:
-
-    - `An Evolutionary Many-Objective Optimization Algorithm Using Reference-Point-Based
-      Nondominated Sorting Approach, Part I: Solving Problems With Box Constraints
-      <https://doi.org/10.1109/TEVC.2013.2281535>`__
-    - `An Evolutionary Many-Objective Optimization Algorithm Using Reference-Point-Based
-      Nondominated Sorting Approach, Part II: Handling Constraints and Extending to an Adaptive
-      Approach
-      <https://doi.org/10.1109/TEVC.2013.2281534>`__
-
-    Args:
-        reference_points:
-            A 2 dimension ``numpy.ndarray`` with objective dimension columns. Represents
-            a list of reference points which is used to determine who to survive.
-            After non-dominated sort, who out of borderline front are going to survived is
-            determined according to how sparse the closest reference point of each individual is.
-            In the default setting the algorithm uses `uniformly` spread points to diversify the
-            result. It is also possible to reflect your `preferences` by giving an arbitrary set of
-            `target` points since the algorithm prioritizes individuals around reference points.
-
-        dividing_parameter:
-            A parameter to determine the density of default reference points. This parameter
-            determines how many divisions are made between reference points on each axis. The
-            smaller this value is, the less reference points you have. The default value is 3.
-            Note that this parameter is not used when ``reference_points`` is not :obj:`None`.
-
-    .. note::
-        Other parameters than ``reference_points`` and ``dividing_parameter`` are the same as
-        :class:`~optuna.samplers.NSGAIISampler`.
-
-    """
 
     def __init__(
         self,
@@ -102,7 +55,6 @@ class NSGAIIISampler(BaseGASampler):
             Callable[[Study, FrozenTrial, TrialState, Sequence[float] | None], None] | None
         ) = None,
     ) -> None:
-        # TODO(ohta): Reconsider the default value of each parameter.
 
         if population_size < 2:
             raise ValueError("`population_size` must be greater than or equal to 2.")
@@ -159,19 +111,6 @@ class NSGAIIISampler(BaseGASampler):
         self._random_sampler.reseed_rng()
         self._rng.rng.seed()
 
-    def infer_relative_search_space(
-        self, study: Study, trial: FrozenTrial
-    ) -> dict[str, BaseDistribution]:
-        search_space: dict[str, BaseDistribution] = {}
-        for name, distribution in self._search_space.calculate(study).items():
-            if distribution.single():
-                # The `untransform` method of `optuna._transform._SearchSpaceTransform`
-                # does not assume a single value,
-                # so single value objects are not sampled with the `sample_relative` method,
-                # but with the `sample_independent` method.
-                continue
-            search_space[name] = distribution
-        return search_space
 
     def select_parent(self, study: Study, generation: int) -> list[FrozenTrial]:
         return self._elite_population_selection_strategy(
@@ -199,10 +138,6 @@ class NSGAIIISampler(BaseGASampler):
         param_name: str,
         param_distribution: BaseDistribution,
     ) -> Any:
-        # Following parameters are randomly sampled here.
-        # 1. A parameter in the initial population/first generation.
-        # 2. A parameter to mutate.
-        # 3. A parameter excluded from the intersection search space.
 
         return self._random_sampler.sample_independent(
             study, trial, param_name, param_distribution

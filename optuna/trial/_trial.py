@@ -35,23 +35,6 @@ _suggest_deprecated_msg = "Use suggest_float{args} instead."
 
 
 class Trial(BaseTrial):
-    """A trial is a process of evaluating an objective function.
-
-    This object is passed to an objective function and provides interfaces to get parameter
-    suggestion, manage the trial's state, and set/get user-defined attributes of the trial.
-
-    Note that the direct use of this constructor is not recommended.
-    This object is seamlessly instantiated and passed to the objective function behind
-    the :func:`optuna.study.Study.optimize()` method; hence library users do not care about
-    instantiation of this object.
-
-    Args:
-        study:
-            A :class:`~optuna.study.Study` object.
-        trial_id:
-            A trial ID that is automatically generated.
-
-    """
 
     def __init__(self, study: Study, trial_id: int) -> None:
         self.study = study
@@ -64,22 +47,10 @@ class Trial(BaseTrial):
 
         self.study.sampler.before_trial(study, self._cached_frozen_trial)
 
-        # NOTE(not522): Evaluate it lazily to get as latest search as possible.
         self.relative_search_space: dict[str, BaseDistribution] | None = None
         self._relative_params: dict[str, Any] | None = None
         self._fixed_params = self._cached_frozen_trial.system_attrs.get("fixed_params", {})
 
-    @property
-    def relative_params(self) -> dict[str, Any]:
-        if self._relative_params is None:
-            study = pruners._filter_study(self.study, self._cached_frozen_trial)
-            self.relative_search_space = self.study.sampler.infer_relative_search_space(
-                study, self._cached_frozen_trial
-            )
-            self._relative_params = self.study.sampler.sample_relative(
-                study, self._cached_frozen_trial, self.relative_search_space
-            )
-        return self._relative_params
 
     def suggest_float(
         self,
@@ -172,76 +143,15 @@ class Trial(BaseTrial):
 
     @deprecated_func("3.0.0", "6.0.0", text=_suggest_deprecated_msg.format(args=""))
     def suggest_uniform(self, name: str, low: float, high: float) -> float:
-        """Suggest a value for the continuous parameter.
-
-        The value is sampled from the range :math:`[\\mathsf{low}, \\mathsf{high})`
-        in the linear domain. When :math:`\\mathsf{low} = \\mathsf{high}`, the value of
-        :math:`\\mathsf{low}` will be returned.
-
-        Args:
-            name:
-                A parameter name.
-            low:
-                Lower endpoint of the range of suggested values. ``low`` is included in the range.
-            high:
-                Upper endpoint of the range of suggested values. ``high`` is included in the range.
-
-        Returns:
-            A suggested float value.
-        """
-
-        return self.suggest_float(name, low, high)
+        pass
 
     @deprecated_func("3.0.0", "6.0.0", text=_suggest_deprecated_msg.format(args="(..., log=True)"))
     def suggest_loguniform(self, name: str, low: float, high: float) -> float:
-        """Suggest a value for the continuous parameter.
-
-        The value is sampled from the range :math:`[\\mathsf{low}, \\mathsf{high})`
-        in the log domain. When :math:`\\mathsf{low} = \\mathsf{high}`, the value of
-        :math:`\\mathsf{low}` will be returned.
-
-        Args:
-            name:
-                A parameter name.
-            low:
-                Lower endpoint of the range of suggested values. ``low`` is included in the range.
-            high:
-                Upper endpoint of the range of suggested values. ``high`` is included in the range.
-
-        Returns:
-            A suggested float value.
-        """
-
-        return self.suggest_float(name, low, high, log=True)
+        pass
 
     @deprecated_func("3.0.0", "6.0.0", text=_suggest_deprecated_msg.format(args="(..., step=...)"))
     def suggest_discrete_uniform(self, name: str, low: float, high: float, q: float) -> float:
-        """Suggest a value for the discrete parameter.
-
-        The value is sampled from the range :math:`[\\mathsf{low}, \\mathsf{high}]`,
-        and the step of discretization is :math:`q`. More specifically,
-        this method returns one of the values in the sequence
-        :math:`\\mathsf{low}, \\mathsf{low} + q, \\mathsf{low} + 2 q, \\dots,
-        \\mathsf{low} + k q \\le \\mathsf{high}`,
-        where :math:`k` denotes an integer. Note that :math:`high` may be changed due to round-off
-        errors if :math:`q` is not an integer. Please check warning messages to find the changed
-        values.
-
-        Args:
-            name:
-                A parameter name.
-            low:
-                Lower endpoint of the range of suggested values. ``low`` is included in the range.
-            high:
-                Upper endpoint of the range of suggested values. ``high`` is included in the range.
-            q:
-                A step of discretization.
-
-        Returns:
-            A suggested float value.
-        """
-
-        return self.suggest_float(name, low, high, step=q)
+        pass
 
     @convert_positional_args(
         previous_positional_arg_names=_SUGGEST_INT_POSITIONAL_ARGS,
@@ -408,8 +318,6 @@ class Trial(BaseTrial):
         .. seealso::
             :ref:`configurations` tutorial describes more details and flexible usages.
         """
-        # There is no need to call self._check_distribution because
-        # CategoricalDistribution does not support dynamic value space.
 
         return self._suggest(name, CategoricalDistribution(choices=choices))
 
@@ -487,7 +395,6 @@ class Trial(BaseTrial):
             )
 
         try:
-            # For convenience, we allow users to report a value that can be cast to `float`.
             value = float(value)
         except (TypeError, ValueError):
             message = (
@@ -505,7 +412,6 @@ class Trial(BaseTrial):
             raise ValueError(f"`{step=}` must be non-negative.")
 
         if step in self._cached_frozen_trial.intermediate_values:
-            # Do nothing if already reported.
             optuna_warn(
                 f"The reported value is ignored because this `{step=}` is already reported."
             )
@@ -515,36 +421,7 @@ class Trial(BaseTrial):
         self._cached_frozen_trial.intermediate_values[step] = value
 
     def should_prune(self) -> bool:
-        """Suggest whether the trial should be pruned or not.
-
-        The suggestion is made by a pruning algorithm associated with the trial and is based on
-        previously reported values. The algorithm can be specified when constructing a
-        :class:`~optuna.study.Study`.
-
-        .. note::
-            If no values have been reported, the algorithm cannot make meaningful suggestions.
-            Similarly, if this method is called multiple times with the exact same set of reported
-            values, the suggestions will be the same.
-
-        .. seealso::
-            Please refer to the example code in :func:`optuna.trial.Trial.report`.
-
-        .. note::
-            :func:`~optuna.trial.Trial.should_prune` does not support multi-objective
-            optimization.
-
-        Returns:
-            A boolean value. If :obj:`True`, the trial should be pruned according to the
-            configured pruning algorithm. Otherwise, the trial should continue.
-        """
-
-        if len(self.study.directions) > 1:
-            raise NotImplementedError(
-                "Trial.should_prune is not supported for multi-objective optimization."
-            )
-
-        trial = self._get_latest_trial()
-        return self.study.pruner.prune(self.study, trial)
+        pass
 
     def set_user_attr(self, key: str, value: Any) -> None:
         """Set user attributes to the trial.
@@ -628,7 +505,6 @@ class Trial(BaseTrial):
         trial = self._get_latest_trial()
 
         if name in trial.distributions:
-            # No need to sample if already suggested.
             distributions.check_distribution_compatibility(trial.distributions[name], distribution)
             param_value = trial.params[name]
         else:
@@ -644,7 +520,6 @@ class Trial(BaseTrial):
                     study, trial, name, distribution
                 )
 
-            # `param_value` is validated here (invalid value like `np.nan` raises ValueError).
             param_value_in_internal_repr = distribution.to_internal_repr(param_value)
             storage.set_trial_param(trial_id, name, param_value_in_internal_repr, distribution)
 
@@ -701,20 +576,13 @@ class Trial(BaseTrial):
             )
 
     def _get_latest_trial(self) -> FrozenTrial:
-        # TODO(eukaryo): Remove this method after `system_attrs` property is removed.
         latest_trial = copy.copy(self._cached_frozen_trial)
         latest_trial.system_attrs = _LazyTrialSystemAttrs(self._trial_id, self.storage)
         return latest_trial
 
     @property
     def params(self) -> dict[str, Any]:
-        """Return parameters to be optimized.
-
-        Returns:
-            A dictionary containing all parameters.
-        """
-
-        return copy.deepcopy(self._cached_frozen_trial.params)
+        pass
 
     @property
     def distributions(self) -> dict[str, BaseDistribution]:
@@ -728,43 +596,20 @@ class Trial(BaseTrial):
 
     @property
     def user_attrs(self) -> dict[str, Any]:
-        """Return user attributes.
-
-        Returns:
-            A dictionary containing all user attributes.
-        """
-
-        return copy.deepcopy(self._cached_frozen_trial.user_attrs)
+        pass
 
     @property
     @deprecated_func("3.1.0", "5.0.0")
     def system_attrs(self) -> dict[str, Any]:
-        """Return system attributes.
-
-        Returns:
-            A dictionary containing all system attributes.
-        """
-
-        return copy.deepcopy(self.storage.get_trial_system_attrs(self._trial_id))
+        pass
 
     @property
     def datetime_start(self) -> datetime.datetime | None:
-        """Return start datetime.
-
-        Returns:
-            Datetime where the :class:`~optuna.trial.Trial` started.
-        """
-        return self._cached_frozen_trial.datetime_start
+        pass
 
     @property
     def number(self) -> int:
-        """Return trial's number which is consecutive and unique in a study.
-
-        Returns:
-            A trial number.
-        """
-
-        return self._cached_frozen_trial.number
+        pass
 
 
 class _LazyTrialSystemAttrs(UserDict):

@@ -44,33 +44,6 @@ def create_insecure_channel(host: str, port: int) -> grpc.Channel:
 
 @experimental_class("4.2.0")
 class GrpcStorageProxy(BaseStorage):
-    """gRPC client for :func:`~optuna.storages.run_grpc_proxy_server`.
-
-    Example:
-
-        This is a simple example of using :class:`~optuna.storages.GrpcStorageProxy` with
-        :func:`~optuna.storages.run_grpc_proxy_server`.
-
-        .. code::
-
-            import optuna
-            from optuna.storages import GrpcStorageProxy
-
-            storage = GrpcStorageProxy(host="localhost", port=13000)
-            study = optuna.create_study(storage=storage)
-
-        Please refer to the example in :func:`~optuna.storages.run_grpc_proxy_server` for the
-        server side code.
-
-    Args:
-        host: The hostname of the gRPC server.
-        port: The port of the gRPC server.
-
-    .. warning::
-
-        Currently, gRPC storage proxy in combination with an SQLite3 database may cause unexpected
-        behaviors when calling :func:`optuna.delete_study` due to non-invalidated cache.
-    """
 
     def __init__(self, *, host: str = "localhost", port: int = 13000) -> None:
         self._host = host
@@ -136,8 +109,6 @@ class GrpcStorageProxy(BaseStorage):
             if e.code() == grpc.StatusCode.NOT_FOUND:
                 raise KeyError from e
             raise
-        # TODO(c-bata): Fix a cache invalidation issue when using SQLite3
-        # Please see https://github.com/optuna/optuna/pull/5872/files#r1893708995 for details.
         self._cache.delete_study_cache(study_id)
 
     def set_study_user_attr(self, study_id: int, key: str, value: Any) -> None:

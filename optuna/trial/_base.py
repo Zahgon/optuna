@@ -20,10 +20,6 @@ _SUGGEST_INT_POSITIONAL_ARGS = ["self", "name", "low", "high", "step", "log"]
 
 
 class BaseTrial(abc.ABC):
-    """Base class for trials.
-
-    Note that this class is not supposed to be directly accessed by library users.
-    """
 
     @abc.abstractmethod
     def suggest_float(

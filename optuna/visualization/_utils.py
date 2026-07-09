@@ -86,7 +86,6 @@ def _is_numerical(trials: list[FrozenTrial], param: str) -> bool:
         if isinstance(dist, (IntDistribution, FloatDistribution)):
             return True
         elif isinstance(dist, CategoricalDistribution):
-            # NOTE: Although it is a bit odd to do so, we keep it as is only for visualization.
             return all(
                 isinstance(v, (int, float)) and not isinstance(v, bool) for v in dist.choices
             )
@@ -127,14 +126,8 @@ def _filter_nonfinite(
     target: Callable[[FrozenTrial], float] | None = None,
     with_message: bool = True,
 ) -> list[FrozenTrial]:
-    # For multi-objective optimization target must be specified to select
-    # one of objective values to filter trials by (and plot by later on).
-    # This function is not raising when target is missing, since we're
-    # assuming plot args have been sanitized before.
     if target is None:
 
-        def _target(t: FrozenTrial) -> float:
-            return cast(float, t.value)
 
         target = _target
 
@@ -153,7 +146,6 @@ def _filter_nonfinite(
             )
             raise
 
-        # Not a Number, positive infinity and negative infinity are considered to be non-finite.
         if not np.isfinite(value):
             if with_message:
                 _logger.warning(
@@ -175,7 +167,6 @@ def _make_json_compatible(value: Any) -> Any:
         json.dumps(value)
         return value
     except TypeError:
-        # The value can't be converted to JSON directly, so return a string representation.
         return str(value)
 
 

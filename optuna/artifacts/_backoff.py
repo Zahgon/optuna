@@ -17,30 +17,6 @@ if TYPE_CHECKING:
 
 
 class Backoff:
-    """An artifact store's middleware for exponential backoff.
-
-    Example:
-       .. code-block:: python
-
-           import optuna
-           from optuna.artifacts import upload_artifact
-           from optuna.artifacts import Boto3ArtifactStore
-           from optuna.artifacts import Backoff
-
-
-           artifact_store = Backoff(Boto3ArtifactStore("my-bucket"))
-
-
-           def objective(trial: optuna.Trial) -> float:
-               ... = trial.suggest_float("x", -10, 10)
-               file_path = generate_example(...)
-               upload_artifact(
-                   artifact_store=artifact_store,
-                   file_path=file_path,
-                   study_or_trial=trial,
-               )
-               return ...
-    """
 
     def __init__(
         self,
@@ -51,8 +27,6 @@ class Backoff:
         min_delay: float = 0.1,
         max_delay: float = 30,
     ) -> None:
-        # Default sleep seconds:
-        # 0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8, 25.6, 30
         self._backend = backend
         assert max_retries > 0
         assert multiplier > 0
@@ -110,8 +84,6 @@ class Backoff:
 
 
 if TYPE_CHECKING:
-    # A mypy-runtime assertion to ensure that the Backoff middleware implements
-    # all abstract methods in ArtifactStore.
     from optuna.artifacts import FileSystemArtifactStore
 
     _: ArtifactStore = Backoff(FileSystemArtifactStore("."))

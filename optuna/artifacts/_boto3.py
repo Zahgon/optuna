@@ -19,42 +19,6 @@ with try_import() as _imports:
 
 
 class Boto3ArtifactStore:
-    """An artifact backend for Boto3.
-
-    Args:
-        bucket_name:
-            The name of the bucket to store artifacts.
-
-        client:
-            A Boto3 client to use for storage operations. If not specified, a new client will
-            be created.
-
-        avoid_buf_copy:
-            If True, skip procedure to copy the content of the source file object to a buffer
-            before uploading it to S3 ins. This is default to False because using
-            ``upload_fileobj()`` method of Boto3 client might close the source file object.
-
-    Example:
-        .. code-block:: python
-
-            import optuna
-            from optuna.artifacts import upload_artifact
-            from optuna.artifacts import Boto3ArtifactStore
-
-
-            artifact_store = Boto3ArtifactStore("my-bucket")
-
-
-            def objective(trial: optuna.Trial) -> float:
-                ... = trial.suggest_float("x", -10, 10)
-                file_path = generate_example(...)
-                upload_artifact(
-                    artifact_store=artifact_store,
-                    file_path=file_path,
-                    study_or_trial=trial,
-                )
-                return ...
-    """
 
     def __init__(
         self, bucket_name: str, client: S3Client | None = None, *, avoid_buf_copy: bool = False
@@ -62,8 +26,6 @@ class Boto3ArtifactStore:
         _imports.check()
         self.bucket = bucket_name
         self.client = client or boto3.client("s3")
-        # This flag is added to avoid that upload_fileobj() method of Boto3 client may close the
-        # source file object. See https://github.com/boto/boto3/issues/929.
         self._avoid_buf_copy = avoid_buf_copy
 
     def open_reader(self, artifact_id: str) -> BinaryIO:
@@ -100,8 +62,6 @@ def _is_not_found_error(e: ClientError) -> bool:
 
 
 if TYPE_CHECKING:
-    # A mypy-runtime assertion to ensure that Boto3ArtifactStore implements all abstract methods
-    # in ArtifactStore.
     from optuna.artifacts._protocol import ArtifactStore
 
     _: ArtifactStore = Boto3ArtifactStore("")

@@ -1,35 +1,8 @@
-# This file contains the codes from SciPy project.
-#
-# Copyright (c) 2001-2002 Enthought, Inc. 2003-2022, SciPy Developers.
-# All rights reserved.
 
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
 
-# 1. Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
 
-# 2. Redistributions in binary form must reproduce the above
-#    copyright notice, this list of conditions and the following
-#    disclaimer in the documentation and/or other materials provided
-#    with the distribution.
 
-# 3. Neither the name of the copyright holder nor the names of its
-#    contributors may be used to endorse or promote products derived
-#    from this software without specific prior written permission.
 
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from __future__ import annotations
 
@@ -56,50 +29,12 @@ def _log_diff(log_p: np.ndarray, log_q: np.ndarray) -> np.ndarray:
     return log_p + np.log1p(-np.exp(log_q - log_p))
 
 
-@functools.lru_cache(1000)
-def _ndtr_single(a: float) -> float:
-    x = a / 2**0.5
-
-    if x < -1 / 2**0.5:
-        y = 0.5 * math.erfc(-x)
-    elif x < 1 / 2**0.5:
-        y = 0.5 + 0.5 * math.erf(x)
-    else:
-        y = 1.0 - 0.5 * math.erfc(x)
-
-    return y
 
 
 def _ndtr(a: np.ndarray) -> np.ndarray:
-    # todo(amylase): implement erfc in _erf.py and use it for big |a| inputs.
     return 0.5 + 0.5 * erf(a / 2**0.5)
 
 
-@functools.lru_cache(1000)
-def _log_ndtr_single(a: float) -> float:
-    if a > 6:
-        return -_ndtr_single(-a)
-    if a > -20:
-        return math.log(_ndtr_single(a))
-
-    log_LHS = -0.5 * a**2 - math.log(-a) - 0.5 * math.log(2 * math.pi)
-    last_total = 0.0
-    right_hand_side = 1.0
-    numerator = 1.0
-    denom_factor = 1.0
-    denom_cons = 1 / a**2
-    sign = 1
-    i = 0
-
-    while abs(last_total - right_hand_side) > sys.float_info.epsilon:
-        i += 1
-        last_total = right_hand_side
-        sign = -sign
-        denom_factor *= denom_cons
-        numerator *= 2 * i - 1
-        right_hand_side += sign * numerator * denom_factor
-
-    return log_LHS + math.log(right_hand_side)
 
 
 def _log_ndtr(a: np.ndarray) -> np.ndarray:
@@ -113,8 +48,6 @@ def _norm_logpdf(x: np.ndarray) -> np.ndarray:
 def _log_gauss_mass(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     """Log of Gaussian probability mass within an interval"""
 
-    # Calculations in right tail are inaccurate, so we'll exploit the
-    # symmetry and work only in the left tail
     case_left = b <= 0
     case_right = a > 0
     case_central = ~(case_left | case_right)
@@ -126,19 +59,8 @@ def _log_gauss_mass(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         return mass_case_left(-b, -a)
 
     def mass_case_central(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-        # Previously, this was implemented as:
-        # left_mass = mass_case_left(a, 0)
-        # right_mass = mass_case_right(0, b)
-        # return _log_sum(left_mass, right_mass)
-        # Catastrophic cancellation occurs as np.exp(log_mass) approaches 1.
-        # Correct for this with an alternative formulation.
-        # We're not concerned with underflow here: if only one term
-        # underflows, it was insignificant; if both terms underflow,
-        # the result can't accurately be represented in logspace anyway
-        # because sc.log1p(x) ~ x for small x.
         return np.log1p(-_ndtr(a) - _ndtr(-b))
 
-    # _lazyselect not working; don't care to debug it
     out = np.full_like(a, fill_value=np.nan, dtype=np.complex128)
     if (a_left := a[case_left]).size:
         out[case_left] = mass_case_left(a_left, b[case_left])
@@ -195,7 +117,6 @@ def _ndtri_exp(y: np.ndarray) -> np.ndarray:
         --> log(exp(-y) - 1) \\simeq -pi * x / sqrt(3)
         --> x \\simeq -sqrt(3) / pi * log(exp(-y) - 1).
     """
-    # Flip the sign of y close to zero for better numerical stability and flip back the sign later.
     flipped = y > -1e-2
     z = y.copy()
     z[flipped] = np.log(-np.expm1(y[flipped]))
@@ -208,16 +129,11 @@ def _ndtri_exp(y: np.ndarray) -> np.ndarray:
     for _ in range(100):
         log_ndtr_x = _log_ndtr(x)
         log_norm_pdf_x = -0.5 * x**2 - _norm_pdf_logC
-        # NOTE(nabenabe): Use exp(log_ndtr_x - log_norm_pdf_x) instead of ndtr_x / norm_pdf_x for
-        # numerical stability.
         dx = (log_ndtr_x - z) * np.exp(log_ndtr_x - log_norm_pdf_x)
         x -= dx
         if np.all(np.abs(dx) < 1e-8 * np.abs(x)):  # NOTE: rtol controls the precision.
-            # Equivalent to np.isclose with atol=0.0 and rtol=1e-8.
             break
     x[flipped] *= -1
-    # NOTE(nabe): x[y == 0.0] = np.inf, x[np.isneginf(y)] = -np.inf are necessary for the accurate
-    # computation, but we omit them as the ppf applies clipping, removing the need for them.
     return x
 
 
@@ -248,8 +164,6 @@ def ppf(q: np.ndarray, a: np.ndarray | float, b: np.ndarray | float) -> np.ndarr
         return _ndtri_exp(log_Phi_x)
 
     def ppf_right(q: np.ndarray, a: np.ndarray, b: np.ndarray, log_mass: np.ndarray) -> np.ndarray:
-        # NOTE(nabenabe): Since the numerical stability of log_ndtr is better in the left tail, we
-        # flip the side for a >= 0.
         log_Phi_x = _log_sum(_log_ndtr(-b), np.log1p(-q) + log_mass)
         return -_ndtri_exp(log_Phi_x)
 

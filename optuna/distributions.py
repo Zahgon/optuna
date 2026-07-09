@@ -29,11 +29,6 @@ _int_distribution_deprecated_msg = "Use :class:`~optuna.distributions.IntDistrib
 
 
 class BaseDistribution(abc.ABC):
-    """Base class for distributions.
-
-    Note that distribution classes are not supposed to be called by library users.
-    They are used by :class:`~optuna.trial.Trial` and :class:`~optuna.samplers` internally.
-    """
 
     def to_external_repr(self, param_value_in_internal_repr: float) -> Any:
         """Convert internal representation of a parameter value into external representation.
@@ -107,34 +102,6 @@ class BaseDistribution(abc.ABC):
 
 
 class FloatDistribution(BaseDistribution):
-    """A distribution on floats.
-
-    This object is instantiated by :func:`~optuna.trial.Trial.suggest_float`, and passed to
-    :mod:`~optuna.samplers` in general.
-
-    .. note::
-        When ``step`` is not :obj:`None`, if the range :math:`[\\mathsf{low}, \\mathsf{high}]`
-        is not divisible by :math:`\\mathsf{step}`, :math:`\\mathsf{high}` will be replaced
-        with the maximum of :math:`k \\times \\mathsf{step} + \\mathsf{low} < \\mathsf{high}`,
-        where :math:`k` is an integer.
-
-    Attributes:
-        low:
-            Lower endpoint of the range of the distribution. ``low`` is included in the range.
-            ``low`` must be less than or equal to ``high``. If ``log`` is :obj:`True`,
-            ``low`` must be larger than 0.
-        high:
-            Upper endpoint of the range of the distribution. ``high`` is included in the range.
-            ``high`` must be greater than or equal to ``low``.
-        log:
-            If ``log`` is :obj:`True`, this distribution is in log-scaled domain.
-            In this case, all parameters enqueued to the distribution must be positive values.
-            This parameter must be :obj:`False` when the parameter ``step`` is not :obj:`None`.
-        step:
-            A discretization step. ``step`` must be larger than 0.
-            This parameter must be :obj:`None` when the parameter ``log`` is :obj:`True`.
-
-    """
 
     def __init__(
         self, low: float, high: float, log: bool = False, step: None | float = None
@@ -199,20 +166,6 @@ class FloatDistribution(BaseDistribution):
 
 @deprecated_class("3.0.0", "6.0.0", text=_float_distribution_deprecated_msg)
 class UniformDistribution(FloatDistribution):
-    """A uniform distribution in the linear domain.
-
-    This object is instantiated by :func:`~optuna.trial.Trial.suggest_float`, and passed to
-    :mod:`~optuna.samplers` in general.
-
-    Attributes:
-        low:
-            Lower endpoint of the range of the distribution. ``low`` is included in the range.
-            ``low`` must be less than or equal to ``high``.
-        high:
-            Upper endpoint of the range of the distribution. ``high`` is included in the range.
-            ``high`` must be greater than or equal to ``low``.
-
-    """
 
     def __init__(self, low: float, high: float) -> None:
         super().__init__(low=low, high=high, log=False, step=None)
@@ -226,20 +179,6 @@ class UniformDistribution(FloatDistribution):
 
 @deprecated_class("3.0.0", "6.0.0", text=_float_distribution_deprecated_msg)
 class LogUniformDistribution(FloatDistribution):
-    """A uniform distribution in the log domain.
-
-    This object is instantiated by :func:`~optuna.trial.Trial.suggest_float` with ``log=True``,
-    and passed to :mod:`~optuna.samplers` in general.
-
-    Attributes:
-        low:
-            Lower endpoint of the range of the distribution. ``low`` is included in the range.
-            ``low`` must be larger than 0. ``low`` must be less than or equal to ``high``.
-        high:
-            Upper endpoint of the range of the distribution. ``high`` is included in the range.
-            ``high`` must be greater than or equal to ``low``.
-
-    """
 
     def __init__(self, low: float, high: float) -> None:
         super().__init__(low=low, high=high, log=True, step=None)
@@ -253,33 +192,6 @@ class LogUniformDistribution(FloatDistribution):
 
 @deprecated_class("3.0.0", "6.0.0", text=_float_distribution_deprecated_msg)
 class DiscreteUniformDistribution(FloatDistribution):
-    """A discretized uniform distribution in the linear domain.
-
-    This object is instantiated by :func:`~optuna.trial.Trial.suggest_float` with ``step``
-    argument, and passed to :mod:`~optuna.samplers` in general.
-
-    .. note::
-        If the range :math:`[\\mathsf{low}, \\mathsf{high}]` is not divisible by :math:`q`,
-        :math:`\\mathsf{high}` will be replaced with the maximum of :math:`k q + \\mathsf{low}
-        < \\mathsf{high}`, where :math:`k` is an integer.
-
-    Args:
-        low:
-            Lower endpoint of the range of the distribution. ``low`` is included in the range.
-            ``low`` must be less than or equal to ``high``.
-        high:
-            Upper endpoint of the range of the distribution. ``high`` is included in the range.
-            ``high`` must be greater than or equal to ``low``.
-        q:
-            A discretization step. ``q`` must be larger than 0.
-
-    Attributes:
-        low:
-            Lower endpoint of the range of the distribution. ``low`` is included in the range.
-        high:
-            Upper endpoint of the range of the distribution. ``high`` is included in the range.
-
-    """
 
     def __init__(self, low: float, high: float, q: float) -> None:
         super().__init__(low=low, high=high, step=q)
@@ -294,48 +206,11 @@ class DiscreteUniformDistribution(FloatDistribution):
 
     @property
     def q(self) -> float:
-        """Discretization step.
+        pass
 
-        :class:`~optuna.distributions.DiscreteUniformDistribution` is a subtype of
-        :class:`~optuna.distributions.FloatDistribution`.
-        This property is a proxy for its ``step`` attribute.
-        """
-        return cast("float", self.step)
-
-    @q.setter
-    def q(self, v: float) -> None:
-        self.step = v
 
 
 class IntDistribution(BaseDistribution):
-    """A distribution on integers.
-
-    This object is instantiated by :func:`~optuna.trial.Trial.suggest_int`, and passed to
-    :mod:`~optuna.samplers` in general.
-
-    .. note::
-        When ``step`` is not :obj:`None`, if the range :math:`[\\mathsf{low}, \\mathsf{high}]`
-        is not divisible by :math:`\\mathsf{step}`, :math:`\\mathsf{high}` will be replaced
-        with the maximum of :math:`k \\times \\mathsf{step} + \\mathsf{low} < \\mathsf{high}`,
-        where :math:`k` is an integer.
-
-    Attributes:
-        low:
-            Lower endpoint of the range of the distribution. ``low`` is included in the range.
-            ``low`` must be less than or equal to ``high``. If ``log`` is :obj:`True`,
-            ``low`` must be larger than or equal to 1.
-        high:
-            Upper endpoint of the range of the distribution. ``high`` is included in the range.
-            ``high`` must be greater than or equal to ``low``.
-        log:
-            If ``log`` is :obj:`True`, this distribution is in log-scaled domain.
-            In this case, all parameters enqueued to the distribution must be positive values.
-            This parameter must be :obj:`False` when the parameter ``step`` is not 1.
-        step:
-            A discretization step. ``step`` must be a positive integer. This parameter must be 1
-            when the parameter ``log`` is :obj:`True`.
-
-    """
 
     def __init__(self, low: int, high: int, log: bool = False, step: int = 1) -> None:
         if log and step != 1:
@@ -394,28 +269,6 @@ class IntDistribution(BaseDistribution):
 
 @deprecated_class("3.0.0", "6.0.0", text=_int_distribution_deprecated_msg)
 class IntUniformDistribution(IntDistribution):
-    """A uniform distribution on integers.
-
-    This object is instantiated by :func:`~optuna.trial.Trial.suggest_int`, and passed to
-    :mod:`~optuna.samplers` in general.
-
-    .. note::
-        If the range :math:`[\\mathsf{low}, \\mathsf{high}]` is not divisible by
-        :math:`\\mathsf{step}`, :math:`\\mathsf{high}` will be replaced with the maximum of
-        :math:`k \\times \\mathsf{step} + \\mathsf{low} < \\mathsf{high}`, where :math:`k` is
-        an integer.
-
-    Attributes:
-        low:
-            Lower endpoint of the range of the distribution. ``low`` is included in the range.
-            ``low`` must be less than or equal to ``high``.
-        high:
-            Upper endpoint of the range of the distribution. ``high`` is included in the range.
-            ``high`` must be greater than or equal to ``low``.
-        step:
-            A discretization step. ``step`` must be a positive integer.
-
-    """
 
     def __init__(self, low: int, high: int, step: int = 1) -> None:
         super().__init__(low=low, high=high, log=False, step=step)
@@ -428,22 +281,6 @@ class IntUniformDistribution(IntDistribution):
 
 @deprecated_class("3.0.0", "6.0.0", text=_int_distribution_deprecated_msg)
 class IntLogUniformDistribution(IntDistribution):
-    """A uniform distribution on integers in the log domain.
-
-    This object is instantiated by :func:`~optuna.trial.Trial.suggest_int`, and passed to
-    :mod:`~optuna.samplers` in general.
-
-    Attributes:
-        low:
-            Lower endpoint of the range of the distribution. ``low`` is included in the range
-            and must be larger than or equal to 1. ``low`` must be less than or equal to ``high``.
-        high:
-            Upper endpoint of the range of the distribution. ``high`` is included in the range.
-            ``high`` must be greater than or equal to ``low``.
-        step:
-            A discretization step. ``step`` must be a positive integer.
-
-    """
 
     def __init__(self, low: int, high: int, step: int = 1) -> None:
         super().__init__(low=low, high=high, log=True, step=step)
@@ -468,26 +305,6 @@ def _categorical_choice_equal(
 
 
 class CategoricalDistribution(BaseDistribution):
-    """A categorical distribution.
-
-    This object is instantiated by :func:`~optuna.trial.Trial.suggest_categorical`, and
-    passed to :mod:`~optuna.samplers` in general.
-
-    Args:
-        choices:
-            Parameter value candidates. ``choices`` must have one element at least.
-
-    .. note::
-
-        Not all types are guaranteed to be compatible with all storages. It is recommended to
-        restrict the types of the choices to :obj:`None`, :class:`bool`, :class:`int`,
-        :class:`float` and :class:`str`.
-
-    Attributes:
-        choices:
-            Parameter value candidates.
-
-    """
 
     def __init__(self, choices: Sequence[CategoricalChoiceType]) -> None:
         if len(choices) == 0:
@@ -508,13 +325,8 @@ class CategoricalDistribution(BaseDistribution):
 
     def to_internal_repr(self, param_value_in_external_repr: CategoricalChoiceType) -> float:
         try:
-            # NOTE(nabenabe): With this implementation, we cannot distinguish some values
-            # such as True and 1, or 1.0 and 1. For example, if choices=[True, 1] and external_repr
-            # is 1, this method wrongly returns 0 instead of 1. However, we decided to accept this
-            # bug for such exceptional choices for less complexity and faster processing.
             return self.choices.index(param_value_in_external_repr)
         except ValueError:  # ValueError: param_value_in_external_repr is not in choices.
-            # ValueError also happens if external_repr is nan or includes precision error in float.
             for index, choice in enumerate(self.choices):
                 if _categorical_choice_equal(param_value_in_external_repr, choice):
                     return index
@@ -586,7 +398,6 @@ def json_to_distribution(json_str: str) -> BaseDistribution:
         raise ValueError(f"Unknown distribution class: {json_dict['name']}")
 
     else:
-        # Deserialize a distribution from an abbreviated format.
         if json_dict["type"] == "categorical":
             return CategoricalDistribution(json_dict["choices"])
         elif json_dict["type"] in ("float", "int"):
@@ -642,7 +453,6 @@ def check_distribution_compatibility(
         raise ValueError("Cannot set different distribution kind to the same parameter name.")
 
     if isinstance(dist_old, (FloatDistribution, IntDistribution)):
-        # For mypy.
         assert isinstance(dist_new, (FloatDistribution, IntDistribution))
 
         if dist_old.log != dist_new.log:
@@ -704,15 +514,12 @@ def _get_single_value(distribution: BaseDistribution) -> int | float | Categoric
     assert False
 
 
-# TODO(himkt): Remove this method with the deletion of deprecated distributions.
-# https://github.com/optuna/optuna/issues/2941
 def _convert_old_distribution_to_new_distribution(
     distribution: BaseDistribution,
     suppress_warning: bool = False,
 ) -> BaseDistribution:
     new_distribution: BaseDistribution
 
-    # Float distributions.
     if isinstance(distribution, UniformDistribution):
         new_distribution = FloatDistribution(
             low=distribution.low,
@@ -735,7 +542,6 @@ def _convert_old_distribution_to_new_distribution(
             step=distribution.q,
         )
 
-    # Integer distributions.
     elif isinstance(distribution, IntUniformDistribution):
         new_distribution = IntDistribution(
             low=distribution.low,
@@ -751,7 +557,6 @@ def _convert_old_distribution_to_new_distribution(
             step=distribution.step,
         )
 
-    # Categorical distribution.
     else:
         new_distribution = distribution
 

@@ -26,42 +26,6 @@ _suggest_deprecated_msg = "Use suggest_float{args} instead."
 
 
 class FixedTrial(BaseTrial):
-    """A trial class which suggests a fixed value for each parameter.
-
-    This object has the same methods as :class:`~optuna.trial.Trial`, and it suggests pre-defined
-    parameter values. The parameter values can be determined at the construction of the
-    :class:`~optuna.trial.FixedTrial` object. In contrast to :class:`~optuna.trial.Trial`,
-    :class:`~optuna.trial.FixedTrial` does not depend on :class:`~optuna.study.Study`, and it is
-    useful for deploying optimization results.
-
-    Example:
-
-        Evaluate an objective function with parameter values given by a user.
-
-        .. testcode::
-
-            import optuna
-
-
-            def objective(trial):
-                x = trial.suggest_float("x", -100, 100)
-                y = trial.suggest_categorical("y", [-1, 0, 1])
-                return x**2 + y
-
-
-            assert objective(optuna.trial.FixedTrial({"x": 1, "y": 0})) == 1
-
-
-    .. note::
-        Please refer to :class:`~optuna.trial.Trial` for details of methods and properties.
-
-    Args:
-        params:
-            A dictionary containing all parameters.
-        number:
-            A trial number. Defaults to ``0``.
-
-    """
 
     def __init__(self, params: dict[str, Any], number: int = 0) -> None:
         self._params = params
@@ -83,17 +47,8 @@ class FixedTrial(BaseTrial):
     ) -> float:
         return self._suggest(name, FloatDistribution(low, high, log=log, step=step))
 
-    @deprecated_func("3.0.0", "6.0.0", text=_suggest_deprecated_msg.format(args=""))
-    def suggest_uniform(self, name: str, low: float, high: float) -> float:
-        return self.suggest_float(name, low, high)
 
-    @deprecated_func("3.0.0", "6.0.0", text=_suggest_deprecated_msg.format(args="(..., log=True)"))
-    def suggest_loguniform(self, name: str, low: float, high: float) -> float:
-        return self.suggest_float(name, low, high, log=True)
 
-    @deprecated_func("3.0.0", "6.0.0", text=_suggest_deprecated_msg.format(args="(..., step=...)"))
-    def suggest_discrete_uniform(self, name: str, low: float, high: float, q: float) -> float:
-        return self.suggest_float(name, low, high, step=q)
 
     @convert_positional_args(
         previous_positional_arg_names=_SUGGEST_INT_POSITIONAL_ARGS,
@@ -133,8 +88,6 @@ class FixedTrial(BaseTrial):
     def report(self, value: float, step: int) -> None:
         pass
 
-    def should_prune(self) -> bool:
-        return False
 
     def set_user_attr(self, key: str, value: Any) -> None:
         self._user_attrs[key] = value
@@ -166,26 +119,11 @@ class FixedTrial(BaseTrial):
 
         return value
 
-    @property
-    def params(self) -> dict[str, Any]:
-        return self._suggested_params
 
     @property
     def distributions(self) -> dict[str, BaseDistribution]:
         return self._distributions
 
-    @property
-    def user_attrs(self) -> dict[str, Any]:
-        return self._user_attrs
 
-    @property
-    def system_attrs(self) -> dict[str, Any]:
-        return self._system_attrs
 
-    @property
-    def datetime_start(self) -> datetime.datetime | None:
-        return self._datetime_start
 
-    @property
-    def number(self) -> int:
-        return self._number

@@ -35,112 +35,6 @@ _suggest_deprecated_msg = "Use suggest_float{args} instead."
 
 
 class FrozenTrial(BaseTrial):
-    """Status and results of a :class:`~optuna.trial.Trial`.
-
-    An object of this class has the same methods as :class:`~optuna.trial.Trial`, but is not
-    associated with, nor has any references to a :class:`~optuna.study.Study`.
-
-    It is therefore not possible to make persistent changes to a storage from this object by
-    itself, for instance by using :func:`~optuna.trial.FrozenTrial.set_user_attr`.
-
-    It will suggest the parameter values stored in :attr:`params` and will not sample values from
-    any distributions.
-
-    It can be passed to objective functions (see :func:`~optuna.study.Study.optimize`) and is
-    useful for deploying optimization results.
-
-    Example:
-
-        Re-evaluate an objective function with parameter values optimized study.
-
-        .. testcode::
-
-            import optuna
-
-
-            def objective(trial):
-                x = trial.suggest_float("x", -1, 1)
-                return x**2
-
-
-            study = optuna.create_study()
-            study.optimize(objective, n_trials=3)
-
-            assert objective(study.best_trial) == study.best_value
-
-    .. note::
-        Instances are mutable, despite the name.
-        For instance, :func:`~optuna.trial.FrozenTrial.set_user_attr` will update user attributes
-        of objects in-place.
-
-
-        Example:
-
-            Overwritten attributes.
-
-            .. testcode::
-
-                import copy
-                import datetime
-
-                import optuna
-
-
-                def objective(trial):
-                    x = trial.suggest_float("x", -1, 1)
-
-                    # this user attribute always differs
-                    trial.set_user_attr("evaluation time", datetime.datetime.now())
-
-                    return x**2
-
-
-                study = optuna.create_study()
-                study.optimize(objective, n_trials=3)
-
-                best_trial = study.best_trial
-                best_trial_copy = copy.deepcopy(best_trial)
-
-                # re-evaluate
-                objective(best_trial)
-
-                # the user attribute is overwritten by re-evaluation
-                assert best_trial.user_attrs != best_trial_copy.user_attrs
-
-    .. note::
-        Please refer to :class:`~optuna.trial.Trial` for details of methods and properties.
-
-
-    Attributes:
-        number:
-            Unique and consecutive number of :class:`~optuna.trial.Trial` for each
-            :class:`~optuna.study.Study`. Note that this field uses zero-based numbering.
-        state:
-            :class:`TrialState` of the :class:`~optuna.trial.Trial`.
-        value:
-            Objective value of the :class:`~optuna.trial.Trial`.
-            ``value`` and ``values`` must not be specified at the same time.
-        values:
-            Sequence of objective values of the :class:`~optuna.trial.Trial`.
-            The length is greater than 1 if the problem is multi-objective optimization.
-            ``value`` and ``values`` must not be specified at the same time.
-        datetime_start:
-            Datetime where the :class:`~optuna.trial.Trial` started.
-        datetime_complete:
-            Datetime where the :class:`~optuna.trial.Trial` finished.
-        params:
-            Dictionary that contains suggested parameters.
-        distributions:
-            Dictionary that contains the distributions of :attr:`params`.
-        user_attrs:
-            Dictionary that contains the attributes of the :class:`~optuna.trial.Trial` set with
-            :func:`optuna.trial.Trial.set_user_attr`.
-        system_attrs:
-            Dictionary that contains the attributes of the :class:`~optuna.trial.Trial` set with
-            :func:`optuna.trial.Trial.set_system_attr`.
-        intermediate_values:
-            Intermediate objective values set with :func:`optuna.trial.Trial.report`.
-    """
 
     def __init__(
         self,
@@ -218,17 +112,8 @@ class FrozenTrial(BaseTrial):
     ) -> float:
         return self._suggest(name, FloatDistribution(low, high, log=log, step=step))
 
-    @deprecated_func("3.0.0", "6.0.0", text=_suggest_deprecated_msg.format(args=""))
-    def suggest_uniform(self, name: str, low: float, high: float) -> float:
-        return self.suggest_float(name, low, high)
 
-    @deprecated_func("3.0.0", "6.0.0", text=_suggest_deprecated_msg.format(args="(..., log=True)"))
-    def suggest_loguniform(self, name: str, low: float, high: float) -> float:
-        return self.suggest_float(name, low, high, log=True)
 
-    @deprecated_func("3.0.0", "6.0.0", text=_suggest_deprecated_msg.format(args="(..., step=...)"))
-    def suggest_discrete_uniform(self, name: str, low: float, high: float, q: float) -> float:
-        return self.suggest_float(name, low, high, step=q)
 
     @convert_positional_args(
         previous_positional_arg_names=_SUGGEST_INT_POSITIONAL_ARGS,
@@ -287,18 +172,7 @@ class FrozenTrial(BaseTrial):
         pass
 
     def should_prune(self) -> bool:
-        """Suggest whether the trial should be pruned or not.
-
-        The suggestion is always :obj:`False` regardless of a pruning algorithm.
-
-        .. note::
-            :class:`~optuna.trial.FrozenTrial` only samples one combination of parameters.
-
-        Returns:
-            :obj:`False`.
-        """
-
-        return False
+        pass
 
     def set_user_attr(self, key: str, value: Any) -> None:
         self._user_attrs[key] = value
@@ -368,66 +242,17 @@ class FrozenTrial(BaseTrial):
 
         return value
 
-    @property
-    def number(self) -> int:
-        return self._number
 
-    @number.setter
-    def number(self, value: int) -> None:
-        self._number = value
 
-    @property
-    def value(self) -> float | None:
-        if self._values is not None:
-            if len(self._values) > 1:
-                raise RuntimeError(
-                    "This attribute is not available during multi-objective optimization."
-                )
-            return self._values[0]
-        return None
 
-    @value.setter
-    def value(self, v: float | None) -> None:
-        if self._values is not None:
-            if len(self._values) > 1:
-                raise RuntimeError(
-                    "This attribute is not available during multi-objective optimization."
-                )
 
-        if v is not None:
-            self._values = [v]
-        else:
-            self._values = None
 
-    # These `_get_values`, `_set_values`, and `values = property(_get_values, _set_values)` are
-    # defined to pass the mypy.
-    # See https://github.com/python/mypy/issues/3004#issuecomment-726022329.
-    def _get_values(self) -> list[float] | None:
-        return self._values
-
-    def _set_values(self, v: Sequence[float] | None) -> None:
-        if v is not None:
-            self._values = list(v)
-        else:
-            self._values = None
 
     values = property(_get_values, _set_values)
 
-    @property
-    def datetime_start(self) -> datetime.datetime | None:
-        return self._datetime_start
 
-    @datetime_start.setter
-    def datetime_start(self, value: datetime.datetime | None) -> None:
-        self._datetime_start = value
 
-    @property
-    def params(self) -> dict[str, Any]:
-        return self._params
 
-    @params.setter
-    def params(self, params: dict[str, Any]) -> None:
-        self._params = params
 
     @property
     def distributions(self) -> dict[str, BaseDistribution]:
@@ -437,47 +262,17 @@ class FrozenTrial(BaseTrial):
     def distributions(self, value: dict[str, BaseDistribution]) -> None:
         self._distributions = value
 
-    @property
-    def user_attrs(self) -> dict[str, Any]:
-        return self._user_attrs
 
-    @user_attrs.setter
-    def user_attrs(self, value: dict[str, Any]) -> None:
-        self._user_attrs = value
 
-    @property
-    def system_attrs(self) -> dict[str, Any]:
-        return self._system_attrs
 
-    @system_attrs.setter
-    def system_attrs(self, value: Mapping[str, JSONSerializable]) -> None:
-        self._system_attrs = cast("dict[str, Any]", value)
 
     @property
     def last_step(self) -> int | None:
-        """Return the maximum step of :attr:`intermediate_values` in the trial.
-
-        Returns:
-            The maximum step of intermediates.
-        """
-
-        if len(self.intermediate_values) == 0:
-            return None
-        else:
-            return max(self.intermediate_values.keys())
+        pass
 
     @property
     def duration(self) -> datetime.timedelta | None:
-        """Return the elapsed time taken to complete the trial.
-
-        Returns:
-            The duration.
-        """
-
-        if self.datetime_start and self.datetime_complete:
-            return self.datetime_complete - self.datetime_start
-        else:
-            return None
+        pass
 
 
 def create_trial(
